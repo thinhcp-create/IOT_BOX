@@ -27,7 +27,6 @@
 #include "usbd_storage_if.h"
 
 /* USER CODE BEGIN Includes */
-extern uint64_t count;
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN PV */
@@ -64,7 +63,6 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-	count++;
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */

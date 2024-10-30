@@ -30,6 +30,10 @@
 #include "usbd_msc.h"
 
 /* USER CODE BEGIN INCLUDE */
+#define STORAGE_LUN_NBR                  1
+#define STORAGE_BLK_NBR                  64
+#define STORAGE_BLK_SIZ                  0x200
+
 
 /* USER CODE END INCLUDE */
 

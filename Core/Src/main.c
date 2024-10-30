@@ -22,7 +22,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "FAT12.h"
+#include "usbd_storage_if.h"
+extern uint8_t flag_handle_csv;
+extern uint8_t buffer[];
+uint8_t flag_readSD=0,flag_reload=0;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +45,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
 
@@ -49,13 +54,17 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-uint64_t count=0,time=0;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void send_to_esp(char *string)
+{
+	uint16_t len = strlen (string);
+	HAL_UART_Transmit(&huart1, (uint8_t *) string, len, HAL_MAX_DELAY);
+}
 /* USER CODE END 0 */
 
 /**
@@ -66,6 +75,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
 
   /* USER CODE END 1 */
 
@@ -88,8 +98,9 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USB_DEVICE_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  send_to_esp("Debug hello\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -99,13 +110,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  count++;
-//	  HAL_Delay(100);
-//	  if(HAL_GetTick()-time>1000)
-//	  {
-//		  count++;
-//		  time = HAL_GetTick();
-//	  }
   }
   /* USER CODE END 3 */
 }
@@ -154,6 +158,39 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
 }
 
 /**

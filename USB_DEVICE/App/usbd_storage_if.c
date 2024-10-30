@@ -63,12 +63,14 @@
   */
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  20
+//#define STORAGE_BLK_NBR                  0x10000
 #define STORAGE_BLK_SIZ                  0x200
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
-uint8_t buffer[STORAGE_BLK_NBR*STORAGE_BLK_SIZ];
-extern uint64_t count;
+ volatile uint8_t buffer[STORAGE_BLK_SIZ  * STORAGE_BLK_NBR]={0};
+ uint8_t write_flag = 0,flag_handle_csv=0;
+ uint64_t write_time=0;
+ extern uint8_t flag_reload;
 /* USER CODE END PRIVATE_DEFINES */
 
 /**
@@ -178,7 +180,6 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
-	count++;
   return (USBD_OK);
   /* USER CODE END 2 */
 }
@@ -193,7 +194,6 @@ int8_t STORAGE_Init_FS(uint8_t lun)
 int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
   /* USER CODE BEGIN 3 */
-	count++;
   *block_num  = STORAGE_BLK_NBR;
   *block_size = STORAGE_BLK_SIZ;
   return (USBD_OK);
@@ -208,7 +208,6 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
-	count++;
   return (USBD_OK);
   /* USER CODE END 4 */
 }
@@ -233,8 +232,8 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 6 */
-	memcpy(buf, &buffer[blk_addr*STORAGE_BLK_SIZ], blk_len*STORAGE_BLK_SIZ);
-  return (USBD_OK);
+	memcpy(buf,(void *)&buffer[blk_addr*STORAGE_BLK_SIZ], blk_len*STORAGE_BLK_SIZ);
+	return (USBD_OK);
   /* USER CODE END 6 */
 }
 
@@ -246,8 +245,8 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
-	 memcpy(&buffer[blk_addr*STORAGE_BLK_SIZ], buf, blk_len*STORAGE_BLK_SIZ);
-  return (USBD_OK);
+	 memcpy((void *)&buffer[blk_addr*STORAGE_BLK_SIZ], buf, blk_len*STORAGE_BLK_SIZ);
+	 return (USBD_OK);
   /* USER CODE END 7 */
 }
 
