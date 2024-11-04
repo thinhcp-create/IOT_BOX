@@ -208,7 +208,12 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
-  return (USBD_OK);
+	if( write_flag == 1 && (HAL_GetTick()- write_time > 1000))
+	  	{
+	  		flag_handle_csv=1;
+	  		write_flag=0;
+	  	}
+	return (USBD_OK);
   /* USER CODE END 4 */
 }
 
@@ -245,6 +250,8 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
+	 write_flag=1;
+	 write_time = HAL_GetTick();
 	 memcpy((void *)&buffer[blk_addr*STORAGE_BLK_SIZ], buf, blk_len*STORAGE_BLK_SIZ);
 	 return (USBD_OK);
   /* USER CODE END 7 */
