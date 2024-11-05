@@ -24,6 +24,7 @@
 /-----------------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_hal.h"
+#include "bsp_driver_sd.h"
 
 /*-----------------------------------------------------------------------------/
 / Functions and Buffer Configurations
@@ -156,7 +157,7 @@
 / Drive/Volume Configurations
 /----------------------------------------------------------------------------*/
 
-#define _VOLUMES    1
+#define _VOLUMES    2
 /* Number of volumes (logical drives) to be used. */
 
 /* USER CODE BEGIN Volumes */

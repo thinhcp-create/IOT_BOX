@@ -213,6 +213,12 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 	  		flag_handle_csv=1;
 	  		write_flag=0;
 	  	}
+//	if (flag_reload==1)
+//	{
+//		return (USBD_BUSY);
+//		flag_reload=0;
+//	}
+
 	return (USBD_OK);
   /* USER CODE END 4 */
 }

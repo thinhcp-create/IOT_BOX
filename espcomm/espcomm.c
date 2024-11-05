@@ -39,20 +39,8 @@ void debugPrint(const char *fmt, ...)
 		vsprintf(buff, fmt, arg);
 		va_end(arg);
 		sprintf(buff2,"@>%03d%s",strlen(buff),buff);
-		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),100);
+		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),HAL_MAX_DELAY);
 	 }
-}
-void mqtt_data_send(const char *fmt,...)
-{
-		char buff[600] = {0};
-		char buff2[602] = {0};
-		va_list arg;
-		va_start(arg, fmt);
-		vsprintf(buff, fmt, arg);
-		va_end(arg);
-		sprintf(buff2,"%%%s",buff);
-		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),100);
-
 }
 void mqtt_debug_send(char* data)
 {
@@ -60,11 +48,7 @@ void mqtt_debug_send(char* data)
 	sprintf(SendDebugtoMqtt,"@>%03d%s",strlen(data),data);
 	HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),100);
 }
-void mqtt_saved_data_send(char* data)
-{
-	data[5]='$';
-	HAL_UART_Transmit(&huart1,(uint8_t*)data,strlen(data),100);
-}
+
 void SyncTime()
 {
 	if(g_time.year<2024)

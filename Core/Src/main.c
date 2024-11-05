@@ -26,6 +26,10 @@
 #include "FAT12.h"
 #include "usbd_storage_if.h"
 #include "espcomm.h"
+#include "usbd_core.h"
+
+extern USBD_HandleTypeDef hUsbDeviceFS;
+extern PCD_HandleTypeDef hpcd_USB_FS;
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
 uint8_t flag_readSD=0,flag_reload=0;
@@ -87,11 +91,11 @@ static void MX_SDIO_SD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void send_to_esp(char *string)
-{
-	uint16_t len = strlen (string);
-	HAL_UART_Transmit(&huart1, (uint8_t *) string, len, HAL_MAX_DELAY);
-}
+//void send_to_esp(char *string)
+//{
+//	uint16_t len = strlen (string);
+//	HAL_UART_Transmit(&huart1, (uint8_t *) string, len, HAL_MAX_DELAY);
+//}
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	SCI1_rxdone=1;
@@ -106,6 +110,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		}
 		cntTimeRev1 = RECV_END_TIMEOUT;
 }
+DIR dir;
+FILINFO fno;
+FRESULT fresult;
+FATFS *pfs;
+DWORD fre_clust;
+uint64_t time=0,time_reload=0;
 /* USER CODE END 0 */
 
 /**
@@ -142,7 +152,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_FATFS_Init();
   MX_USART2_UART_Init();
-//  MX_SDIO_SD_Init();
+  MX_SDIO_SD_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
   /* USER CODE END 2 */
@@ -153,8 +163,8 @@ int main(void)
   {
 	  if (flag_handle_csv ==1 )
 	  	  {
-//	  		  FS_FileOperations();
-		  	  send_to_esp("Debug newdata \n");
+	  		  FS_FileOperations();
+//		  	  send_to_esp("Debug newdata \n");
 	  	  	  flag_handle_csv =0;
 	  	  }
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
@@ -238,14 +248,6 @@ static void MX_SDIO_SD_Init(void)
   hsd.Init.BusWide = SDIO_BUS_WIDE_4B;
   hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
   hsd.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_4B) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN SDIO_Init 2 */
 
   /* USER CODE END SDIO_Init 2 */
@@ -369,7 +371,333 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+enum alarm  {
+            alarm_Low_UV_Lamp=0,
+            alarm_IO_I2C_error,
+            alarm_Dose,
+            alarm_Lamps_not_striking,
+            Not_Used_0	,
+            alarm_PCB_temp_too_high,
+            alarm_System_temp,
+            alarm_Lamp_no_output,
+            alarm_Front_Panel_Ajar,
+            alarm_UV_Sensor,
+            alarm_water_temp
 
+};
+
+enum warn  {
+          warn_End_of_Lamp_Life=0,              // Warning 1
+          Not_Used_1,        //         2 --- Not Used
+          warn_Wiper_not_turning,             //         3
+          warn_Water_temperature_high,        //         4
+          warn_System_temp_limit,             //         5
+          warn_Water_temp_sensor,             //         6
+          warn_UV_temp_sensor,                //         7
+          Not_Used_2,     //         8 --- Not Used
+          warn_System_temp_sensor,            //         9
+          warn_Lamp_Lifetime                 //         10
+};
+uint16_t  getValue(const char *str, const char *label) {
+    char *pos = strstr(str, label);  // Tìm nhãn trong chuỗi
+    if (pos) {
+        pos += strlen(label) + 1;    // Dịch con trỏ sau nhãn và dấu ':'
+        return atoi(pos);            // Chuyển đổi giá trị thành số nguyên
+    }
+    return 0; // Trả về 0 nếu không tìm thấy nhãn
+}
+const char* getBitAsString(unsigned int value, int index) {
+    // Kiểm tra bit tại vị trí index và trả về chuỗi tương ứng
+    return ((value >> index) & 1) ? "1" : "0";
+}
+char format_string[1024] = {0};
+void format_data(char *data, char *final_string) {
+    char *token;
+    char time_value[20] = {0};  // Chuỗi để lưu giá trị Time
+    int index = 0;
+
+    // Danh sách các nhãn cho từng mục
+
+    const char *labels[] = {
+        "time", "TreatSt", "UvDose", "UVT", "UVI", "LLamp", "LWater", "RLamp", "RWater", "PCBtem",
+        "SYSTem", "WTemp", "LTemp", "ALARM", "WARN", "OUTPUT", "24volt", "INPUT", "FanUV", "FanPCB",
+        "Heat1", "Heat2", "SysSt", "PurgeSt", "UVFanSt", "WiperSt", "PurgeVl", "I2CBusy", "I2CTO",
+        "I2CErr", "I2CGood", "I2CChan", "IOGood"
+    };
+    const char *alarm_labels[] ={
+    		  "a_LowUVLamp",
+    		  "a_IOI2C_err",
+    		  "a_Dose",
+    		  "a_LampNtStrik",
+    		  "Not_Used_0"	,
+    		  "a_PCBtmpTooHigh",
+    		  "a_Sys_tmp",
+    		  "a_LmpNoOutput",
+    		  "a_FrtPanelAjar",
+    		  "a_UVSensor",
+    		  "a_WaterTmp"
+    };
+    const char *warn_labels[] = {
+          "w_EndofLmpLife",              // Warning 1
+          "Not_Used_1",        //         2 --- Not Used
+          "w_WiperNtTurn",             //         3
+          "w_WaterTmpHigh",        //         4
+          "w_SysTmpLimit",             //         5
+          "w_WaterTmpSen",             //         6
+          "w_UVTmpSen",                //         7
+          "Not_Used_2",     //         8 --- Not Used
+          "w_SysTmpSen",            //         9
+          "w_LmpLifetime"
+    };
+
+    // Sử dụng strtok để tách chuỗi
+    token = strtok(data, ",");
+
+    // Bước 1: Tạo giá trị cho "Time" bằng cách nối các mục đầu tiên
+    snprintf(time_value, sizeof(time_value), "%s", token);  // 20240919
+    token = strtok(NULL, ",");
+    strcat(time_value, token);  // 15
+    token = strtok(NULL, ",");
+    strcat(time_value, token);  // 09
+    token = strtok(NULL, ",");
+    strcat(time_value, token);  // 15
+
+    // Thêm giá trị "Time" vào chuỗi kết quả
+    snprintf(final_string, 1024, "%s\t", time_value);  // 20240919150915
+
+    // Bước 2: Gán các giá trị còn lại và nối vào chuỗi kết quả
+    index = 1;  // Bắt đầu từ TreatSt
+    while (token != NULL && index < sizeof(labels)/sizeof(labels[0])) {
+        token = strtok(NULL, ",");
+        if (token != NULL) {
+            // Nối nhãn và giá trị vào chuỗi kết quả
+            strcat(final_string, labels[index]);
+            strcat(final_string,":");
+            strcat(final_string, token);
+            strcat(final_string, "\t");
+        }
+        index++;
+    }
+    if (strstr(final_string,"ALARM")!= NULL)
+    {
+    	for(uint8_t i = alarm_Low_UV_Lamp;i<alarm_water_temp+1;i++)
+    	{  if(i != Not_Used_0)
+    		{
+    		strcat(final_string,alarm_labels[i]);
+    		strcat(final_string,":");
+    	    strcat(final_string,getBitAsString(getValue(final_string,"ALARM"),i));
+    	    strcat(final_string, "\t");
+    		};
+    	}
+    }
+    if (strstr(final_string,"WARN")!= NULL)
+        {
+        	for(uint8_t i = warn_End_of_Lamp_Life;i<warn_Lamp_Lifetime+1;i++)
+        	{  if(i != Not_Used_1 && i!= Not_Used_2)
+        		{
+        		strcat(final_string,warn_labels[i]);
+        		strcat(final_string,":");
+        	    strcat(final_string,getBitAsString(getValue(final_string,"WARN"),i));
+        	    strcat(final_string, "\t");
+        		};
+        	}
+        }
+    final_string[strlen(final_string)-1]= '\n';
+}
+
+void process_data(char *data,const char *filename)
+{
+    char extracted_csv[20] = {0};
+    char formatted_time[20] = {0};
+    char final_data[512] = {0};  // Dữ liệu kết quả cuối cùng
+    char *csv_start = strstr(filename, ".CSV");
+    if (csv_start != NULL) {
+        if (csv_start != NULL) {
+            strncpy(extracted_csv,filename, csv_start-filename);  // Lấy phần 20240918
+        }
+    }
+        int hours, minutes, seconds;
+        char *time_start = data;
+        // Đọc định dạng thời gian "15:1:15"
+        sscanf(time_start, "%d:%d:%d", &hours, &minutes, &seconds);
+
+        // Định dạng lại thành "15,01,15"
+        snprintf(formatted_time, sizeof(formatted_time), "%02d,%02d,%02d", hours, minutes, seconds);
+
+        // Bỏ qua phần thời gian trong chuỗi để lấy phần dữ liệu tiếp theo
+        char *data_start = strchr(time_start, ',');
+        if (data_start != NULL && *(data_start+1) != '\0' && *(data_start+1) != '\n') {
+            data_start += 1;  // Bỏ qua dấu phẩy đầu tiên
+            // Bước 3: Kết hợp chuỗi đã xử lý với phần dữ liệu còn lại
+            snprintf(final_data, sizeof(final_data), "%s,%s,%s", extracted_csv, formatted_time, data_start);
+            memset(format_string,0,1024);
+            format_data(final_data,format_string);
+            // In ra kết quả cuối cùng
+            mqtt_data_send((char *)format_string);
+            memset(format_string,0,1024);
+    }
+}
+
+
+
+
+
+FRESULT res;
+char lineBuffer[256];
+ uint8_t ramtoSD[1000];
+ UINT br=0,bw=0;
+
+ uint8_t *second_line;
+
+void ReadFirstLineFromFile(const char* filename)
+{
+//	send_debug("Debug ReadFirstLineFromFile\n");
+	memset(lineBuffer,0,sizeof(lineBuffer));
+	memset(ramtoSD,0,sizeof(ramtoSD));
+    // M? file CSV c?n d?c
+    res = f_open(&USERFile, filename, FA_READ);
+    if (res == FR_OK) {
+//    	send_debug("Debug while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL)\n");
+			while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL) {
+//				debugPrint(lineBuffer);
+//				debugPrint("\n");
+//				send_to_esp(lineBuffer);
+//				send_to_esp("\n");
+				process_data(lineBuffer, filename);
+
+    }
+
+
+        f_close(&USERFile);
+//        memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR );
+        create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
+//        __HAL_RCC_USB_CLK_DISABLE();
+              USB->CNTR |= USB_CNTR_FRES;       // Đưa USB vào trạng thái reset
+//              USB->CNTR &= ~(USB_CNTR_PDWN | USB_CNTR_LP_MODE); // Tắt chế độ low-power và power-down
+              HAL_Delay(10000);
+              // 1. Bỏ trạng thái reset của USB
+          USB->CNTR &= ~USB_CNTR_FRES;
+
+                  // 3. Khởi động lại USB Peripheral (nếu dùng HAL)
+//          HAL_PCD_Start(&hpcd_USB_FS);
+          MX_USB_DEVICE_Init();
+//          USB->BCDR &= ~USB_BCDR_DPPU;  // Tắt pull-up trên D+
+          HAL_Delay(100);
+//          USB->BCDR |= USB_BCDR_DPPU;   // Bật pull-up trên D+
+          HAL_Delay(100);
+          HAL_PCD_Init(&hpcd_USB_FS);
+          HAL_PCD_Start(&hpcd_USB_FS); // Bắt đầu lại USB
+// Chờ Host nhận diện kết nối lại
+// Chờ một chút để Host nhận diện ngắt kết nối
+
+
+
+
+//        USB_CNTR_FRES =0;
+//        __HAL_RCC_USB_CLK_ENABLE();
+//        flag_reload=1;
+//        USBD_Stop(&hUsbDeviceFS);
+//        HAL_Delay(100);
+//        USBD_Start(&hUsbDeviceFS);
+//        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12);
+//        HAL_Delay(100);
+//        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12);
+//        res = f_open(&USERFile, filename, FA_WRITE | FA_CREATE_ALWAYS);
+//        f_close(&USERFile);
+//        res = f_open(&USERFile, filename, FA_READ);
+//        if (res == FR_OK) {
+//                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
+//                f_close(&USERFile);
+//        }
+//        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+//        SD_FATFS_Init();
+////        send_debug("Debug SD_FATFS_Init\n");
+//        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
+////        send_debug("Debug f_mount(&SDFatFS, (TCHAR const*)SDPath,1)\n");
+//        if(fresult == FR_OK)
+//        {
+//        			fresult = f_stat(filename, &fno);
+//        	        second_line = &ramtoSD[0];
+//        	        if (fresult == FR_OK) {
+//        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
+//        	        	 if (newline_pos != NULL) {
+//        	        		 *newline_pos = '\0';
+//        	        		  second_line = newline_pos + 2;
+//        	        	 }
+//        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+//        	        }else fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+//        	        f_lseek(&SDFile, f_size(&SDFile));
+//        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
+//        	        if (fresult == FR_OK)
+//        	        	{
+//        	        		send_to_esp("Debug write data to SD successed\n");
+//        	        		send_uart("Write data to SD successed\n");
+//        	        	}
+//        	        f_close(&SDFile);
+////        	        send_debug("Debug f_close(&SDFile)\n");
+//        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
+//        }
+
+    } else {
+    	debugPrint("Could not open file in RAM\n");
+    }
+//    memset(buffer,0,STORAGE_BLK_SIZ  * STORAGE_BLK_NBR);
+////    send_debug("Debug Read end\n");
+//    HAL_IWDG_Refresh(&hiwdg1);
+//    HAL_NVIC_SystemReset();
+//
+}
+
+
+
+FRESULT res;
+void FS_FileOperations()
+{
+//	send_debug("Debug FS_FileOperations\n");
+  /* Register the file system object to the FatFs module */
+	RAM_FATFS_Init();
+//	send_debug("Debug f_mount(&USERFatFS, (TCHAR const*)USERPath, 1)\n");
+	res = f_mount(&USERFatFS, (TCHAR const*)USERPath, 1);
+  if(res == FR_OK)
+  {
+          /* Open the text file object with read access */
+					res = f_opendir(&dir, (TCHAR const*)USERPath);
+					if (res == FR_OK) {
+//						send_debug("Debug while((fno.fattrib & AM_DIR) || fno.fname[0] != 0)\n");
+						do {
+											memset(fno.fname,0,sizeof(fno.fname));
+											res = f_readdir(&dir, &fno);
+
+										// Ki?m tra n?u không còn file nào
+										if (res != FR_OK || fno.fname[0] == 0) {
+//												debugPrint("Read end\n");
+												break;
+										}
+
+										// B? qua thu m?c
+										if (fno.fattrib & AM_DIR) {
+//											debugPrint("Found folder\n");
+										}
+
+										// Ki?m tra n?u file có ph?n m? r?ng .csv
+										if (strstr(fno.fname, ".CSV") != NULL) {
+//											debugPrint("Found CSV file: ");
+//											debugPrint(fno.fname);
+//											debugPrint("\n");
+												// �??c dòng d?u tiên t? file CSV
+												ReadFirstLineFromFile(fno.fname);
+										}
+
+									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
+						res= f_closedir(&dir);
+
+//						res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+					}
+  }
+
+ //
+
+}
 /* USER CODE END 4 */
 
 /**

@@ -18,6 +18,10 @@
 /* USER CODE END Header */
 #include "fatfs.h"
 
+uint8_t retSD;    /* Return value for SD */
+char SDPath[4];   /* SD logical drive path */
+FATFS SDFatFS;    /* File system object for SD logical drive */
+FIL SDFile;       /* File object for SD */
 uint8_t retUSER;    /* Return value for USER */
 char USERPath[4];   /* USER logical drive path */
 FATFS USERFatFS;    /* File system object for USER logical drive */
@@ -29,6 +33,8 @@ FIL USERFile;       /* File object for USER */
 
 void MX_FATFS_Init(void)
 {
+  /*## FatFS: Link the SD driver ###########################*/
+//  retSD = FATFS_LinkDriver(&SD_Driver, SDPath);
   /*## FatFS: Link the USER driver ###########################*/
   retUSER = FATFS_LinkDriver(&USER_Driver, USERPath);
 
@@ -50,5 +56,24 @@ DWORD get_fattime(void)
 }
 
 /* USER CODE BEGIN Application */
+void SD_FATFS_Init(void)
+{
+	/*## FatFS: Link the USER driver ###########################*/
+	  retUSER = FATFS_UnLinkDriver(USERPath);
 
+	  /* USER CODE BEGIN Init */
+	  retSD = FATFS_LinkDriver(&SD_Driver,SDPath);
+	  /* additional user code for init */
+	  /* USER CODE END Init */
+}
+void RAM_FATFS_Init(void)
+{
+	/*## FatFS: Link the USER driver ###########################*/
+	  retUSER = FATFS_UnLinkDriver(SDPath);
+
+	  /* USER CODE BEGIN Init */
+	  retUSER = FATFS_LinkDriver(&USER_Driver, USERPath);
+	  /* additional user code for init */
+	  /* USER CODE END Init */
+}
 /* USER CODE END Application */
