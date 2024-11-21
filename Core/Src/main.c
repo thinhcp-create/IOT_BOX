@@ -27,11 +27,17 @@
 #include "usbd_storage_if.h"
 #include "espcomm.h"
 #include "usbd_core.h"
+#include "FLASH_PAGE_F1.h"
+
+uint8_t checksum_frame_to_debug=0;
+#define ADDR_APP_PROGRAM 0x08008000
+#define CRC32_POLYNOMIAL 0x04C11DB7
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
 extern PCD_HandleTypeDef hpcd_USB_FS;
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
+extern uint8_t flag_write_page_ota;
 uint8_t flag_readSD=0,flag_reload=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
@@ -50,14 +56,22 @@ uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
+uint32_t time_blink=0;
+uint32_t crc32_firmwave=0;
+uint64_t count=0;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 volatile uint8_t SCI1_rxdone=0;
+volatile uint8_t g_ota=0;
 uint16_t g_rx1_cnt;
 uint8_t cntTimeRev1;
 char g_rx1_buffer[MAX_BUFFER_UART1];
+char g_ota_buffer[MAX_BUFFER_UART1];
+uint8_t flag_end_frame=0;
+extern uint8_t data_ota[];
+extern uint8_t page_offset;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -71,6 +85,8 @@ char g_rx1_buffer[MAX_BUFFER_UART1];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+CRC_HandleTypeDef hcrc;
+
 SD_HandleTypeDef hsd;
 
 UART_HandleTypeDef huart1;
@@ -86,6 +102,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SDIO_SD_Init(void);
+static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -98,8 +115,10 @@ static void MX_SDIO_SD_Init(void);
 //}
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	SCI1_rxdone=1;
-	HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
+	if(!g_ota)
+	{
+		SCI1_rxdone=1;
+		HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
 		if(g_rx1_cnt < MAX_BUFFER_UART1)
 		{
 			g_rx1_buffer[g_rx1_cnt++] = g_rx1_char;
@@ -109,13 +128,61 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			memset(g_rx1_buffer,0,sizeof(g_rx1_buffer));
 		}
 		cntTimeRev1 = RECV_END_TIMEOUT;
+	}
+	else
+	{
+		HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
+		if(g_rx1_cnt < MAX_BUFFER_UART1)
+				{
+					g_rx1_buffer[g_rx1_cnt++] = g_rx1_char;
+				}
+				else{
+					g_rx1_cnt = 0;
+					memset(g_ota_buffer,0,sizeof(g_rx1_buffer));
+					memcpy(g_ota_buffer,g_rx1_buffer,sizeof(g_rx1_buffer));
+					flag_end_frame=1;
+					memset(g_rx1_buffer,0,sizeof(g_rx1_buffer));
+				}
+				cntTimeRev1 =2000;
+	}
 }
+
 DIR dir;
 FILINFO fno;
 FRESULT fresult;
 FATFS *pfs;
 DWORD fre_clust;
 uint64_t time=0,time_reload=0;
+
+uint32_t crc32_table[256]={0};
+
+// Khởi tạo bảng tra cứu CRC32
+void generate_crc32_table() {
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t crc = i << 24;
+        for (uint32_t j = 0; j < 8; j++) {
+            if (crc & 0x80000000) {
+                crc = (crc << 1) ^ CRC32_POLYNOMIAL;
+            } else {
+                crc <<= 1;
+            }
+        }
+        crc32_table[i] = crc;
+    }
+}
+
+// Hàm tính CRC32 từ mảng bất kỳ
+uint32_t calculate_crc32(const void *data, size_t length) {
+    uint32_t crc = 0xFFFFFFFF; // Giá trị khởi tạo
+    const uint8_t *byte_data = (const uint8_t *)data; // Chuyển dữ liệu thành mảng uint8_t
+
+    for (size_t i = 0; i < length; i++) {
+        uint8_t lookup_index = (crc >> 24) ^ byte_data[i];
+        crc = (crc << 8) ^ crc32_table[lookup_index];
+    }
+
+    return crc ^ 0xFFFFFFFF; // XOR với 0xFFFFFFFF để lấy kết quả cuối
+}
 /* USER CODE END 0 */
 
 /**
@@ -126,8 +193,10 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	SCB->VTOR = (uint32_t)ADDR_APP_PROGRAM ;
+	__enable_irq();
 	create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-
+	generate_crc32_table();
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -153,6 +222,7 @@ int main(void)
   MX_FATFS_Init();
   MX_USART2_UART_Init();
   MX_SDIO_SD_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
   /* USER CODE END 2 */
@@ -167,11 +237,23 @@ int main(void)
 //		  	  send_to_esp("Debug newdata \n");
 	  	  	  flag_handle_csv =0;
 	  	  }
-	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
+	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD && !g_ota)
 	  		{
 	  			EspCmdHandler();
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
+	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD && g_ota &&flag_end_frame)
+	  	  		{
+	  	  			EspOtaHandler();
+	  	  		flag_end_frame =0;
+	  	  			g_espcomm_tick = HAL_GetTick();
+	  	  		}
+	  if(HAL_GetTick()-time_blink >1000)
+	  {
+		  time_blink = HAL_GetTick();
+		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -224,6 +306,32 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
 }
 
 /**
@@ -338,13 +446,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin|RST_WIFI_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(RST_WIFI_GPIO_Port, RST_WIFI_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, DO1_Pin|DO2_Pin|DO3_Pin|DO4_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
+                          |DO4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : DI4_Pin DI3_Pin DI2_Pin DI1_Pin */
   GPIO_InitStruct.Pin = DI4_Pin|DI3_Pin|DI2_Pin|DI1_Pin;
@@ -359,8 +465,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : DO1_Pin DO2_Pin DO3_Pin DO4_Pin */
-  GPIO_InitStruct.Pin = DO1_Pin|DO2_Pin|DO3_Pin|DO4_Pin;
+  /*Configure GPIO pins : LED_Pin DO1_Pin DO2_Pin DO3_Pin
+                           DO4_Pin */
+  GPIO_InitStruct.Pin = LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
+                          |DO4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -401,13 +509,13 @@ enum warn  {
 uint16_t  getValue(const char *str, const char *label) {
     char *pos = strstr(str, label);  // Tìm nhãn trong chuỗi
     if (pos) {
-        pos += strlen(label) + 1;    // Dịch con trỏ sau nhãn và dấu ':'
+        pos += strlen(label) + 1;    // Dịch con tr�? sau nhãn và dấu ':'
         return atoi(pos);            // Chuyển đổi giá trị thành số nguyên
     }
-    return 0; // Trả về 0 nếu không tìm thấy nhãn
+    return 0; // Trả v�? 0 nếu không tìm thấy nhãn
 }
 const char* getBitAsString(unsigned int value, int index) {
-    // Kiểm tra bit tại vị trí index và trả về chuỗi tương ứng
+    // Kiểm tra bit tại vị trí index và trả v�? chuỗi tương ứng
     return ((value >> index) & 1) ? "1" : "0";
 }
 char format_string[1024] = {0};
@@ -518,16 +626,16 @@ void process_data(char *data,const char *filename)
     }
         int hours, minutes, seconds;
         char *time_start = data;
-        // Đọc định dạng thời gian "15:1:15"
+        // �?�?c định dạng th�?i gian "15:1:15"
         sscanf(time_start, "%d:%d:%d", &hours, &minutes, &seconds);
 
-        // Định dạng lại thành "15,01,15"
+        // �?ịnh dạng lại thành "15,01,15"
         snprintf(formatted_time, sizeof(formatted_time), "%02d,%02d,%02d", hours, minutes, seconds);
 
-        // Bỏ qua phần thời gian trong chuỗi để lấy phần dữ liệu tiếp theo
+        // B�? qua phần th�?i gian trong chuỗi để lấy phần dữ liệu tiếp theo
         char *data_start = strchr(time_start, ',');
         if (data_start != NULL && *(data_start+1) != '\0' && *(data_start+1) != '\n') {
-            data_start += 1;  // Bỏ qua dấu phẩy đầu tiên
+            data_start += 1;  // B�? qua dấu phẩy đầu tiên
             // Bước 3: Kết hợp chuỗi đã xử lý với phần dữ liệu còn lại
             snprintf(final_data, sizeof(final_data), "%s,%s,%s", extracted_csv, formatted_time, data_start);
             memset(format_string,0,1024);
@@ -572,10 +680,10 @@ void ReadFirstLineFromFile(const char* filename)
 //        memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR );
         create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
 //        __HAL_RCC_USB_CLK_DISABLE();
-              USB->CNTR |= USB_CNTR_FRES;       // Đưa USB vào trạng thái reset
+              USB->CNTR |= USB_CNTR_FRES;       // �?ưa USB vào trạng thái reset
 //              USB->CNTR &= ~(USB_CNTR_PDWN | USB_CNTR_LP_MODE); // Tắt chế độ low-power và power-down
               HAL_Delay(10000);
-              // 1. Bỏ trạng thái reset của USB
+              // 1. B�? trạng thái reset của USB
           USB->CNTR &= ~USB_CNTR_FRES;
 
                   // 3. Khởi động lại USB Peripheral (nếu dùng HAL)
@@ -587,8 +695,8 @@ void ReadFirstLineFromFile(const char* filename)
           HAL_Delay(100);
           HAL_PCD_Init(&hpcd_USB_FS);
           HAL_PCD_Start(&hpcd_USB_FS); // Bắt đầu lại USB
-// Chờ Host nhận diện kết nối lại
-// Chờ một chút để Host nhận diện ngắt kết nối
+// Ch�? Host nhận diện kết nối lại
+// Ch�? một chút để Host nhận diện ngắt kết nối
 
 
 

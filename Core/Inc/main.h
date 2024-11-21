@@ -61,7 +61,7 @@ extern "C" {
 #define DEVICE_REGISTERS_NUMBER 70
 #define PARAMETER_QUEUE_SIZE 150
 #define MQTT_BUFF_SIZE 256
-#define MAX_BUFFER_UART1 128
+#define MAX_BUFFER_UART1 265
 #define MAX_BUFFER_UART5 128
 #define MMC_SECTOR_SIZE 512
 #define MODBUS_NB_CONFIG 21
@@ -163,6 +163,8 @@ void Error_Handler(void);
 #define RS485_RX_GPIO_Port GPIOA
 #define RST_WIFI_Pin GPIO_PIN_4
 #define RST_WIFI_GPIO_Port GPIOA
+#define LED_Pin GPIO_PIN_0
+#define LED_GPIO_Port GPIOB
 #define DO1_Pin GPIO_PIN_12
 #define DO1_GPIO_Port GPIOB
 #define DO2_Pin GPIO_PIN_13
