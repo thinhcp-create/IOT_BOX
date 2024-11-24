@@ -26,7 +26,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
-
+volatile uint8_t Timer_frame_ota;
+volatile uint8_t Cnt = 0;
+void OTA_Timer_Handler(void)
+{
+  if(Timer_frame_ota > 0)
+	  Timer_frame_ota--;
+}
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
@@ -184,7 +190,12 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
-
+			Cnt++;
+		  if(Cnt >= 255)
+		  {
+		    Cnt = 0;
+		    OTA_Timer_Handler();
+		  }
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */

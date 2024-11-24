@@ -31,7 +31,7 @@ void Flash_Write_NUM (uint32_t StartSectorAddress, float Num);
 
 float Flash_Read_NUM (uint32_t StartSectorAddress);
 
-
+uint32_t Flash_Write_Array(uint32_t StartAddress, uint8_t *data, uint16_t len);
 
 /********************  FLASH_Error_Codes   ***********************//*
 HAL_FLASH_ERROR_NONE      0x00U  // No error

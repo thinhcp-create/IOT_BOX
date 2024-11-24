@@ -31,19 +31,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#define FW_VER 58
-#define HW_VER 2 //remove flash chip, add SD card
-
-
-#if HW_VER == 1
-#define EXTERN_MEMORY_TYPE 1 // 1:en25Q64
-#endif
-
-#if HW_VER == 2
-#define EXTERN_MEMORY_TYPE 2 // 2:SD Card
-#endif
-
-
+#define FW_VER 1
+#define HW_VER 1 //remove flash chip, add SD card
 
 
 #define UPRATE_MIN 5 //sec
@@ -77,48 +66,6 @@ typedef struct {
 	uint8_t month;
 	uint16_t year;
 } rtc_time;
-typedef struct
-{
-	char code[5];
-	char value[10];
-} param_value;
-
-typedef struct
-{
-	uint8_t cmd;//decimal value: modbus read command 1,2,3,4
-	uint16_t start_add;
-	uint16_t quantity;
-} mb_conf;
-
-
-#define MAX_TYPE 100000
-typedef enum {
-	NO_TYPE =0,
-//	PUMP_CTRL_PNL =1,
-	nXtPro =2,
-	iSolar =3,
-	PETROL_GEN =5,
-	SINGLE_PMP_PRO_CP =6,
-	SMART_PETROL_GEN =9,
-	DUAL_PMP_PRO_CP =10
-} device_type;
-
-//static const char * const Device_Type_Name[] = {
-//	[NO_TYPE] = "NO_TYPE",
-////	[PUMP_CTRL_PNL] = "PUMP_CTRL_PNL",
-//	[nXtPro] = "nXtPro",
-//	[iSolar] = "iSolar",
-//	[PETROL_GEN] = "SIMPLE_PETROL_GEN",
-//	[SINGLE_PMP_PRO_CP] = "SINGLE_PMP_PRO_CP",
-//	[SMART_PETROL_GEN] = "SMART_PETROL_GEN",
-//	[DUAL_PMP_PRO_CP] = "DUAL_PMP_PRO_CP"
-//};
-typedef struct {
-	int32_t pnt_front;
-	int32_t pnt_rear;
-//	int32_t addr_begin;
-//	int32_t addr_end;
-}LIFO_inst;
 
 /* USER CODE END Includes */
 

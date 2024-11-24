@@ -29,7 +29,6 @@
 #include "usbd_core.h"
 #include "FLASH_PAGE_F1.h"
 
-uint8_t checksum_frame_to_debug=0;
 #define ADDR_APP_PROGRAM 0x08008000
 #define CRC32_POLYNOMIAL 0x04C11DB7
 
@@ -42,34 +41,23 @@ uint8_t flag_readSD=0,flag_reload=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
 rtc_time g_time;
-uint32_t g_DeviceType = 0;
-uint8_t g_modbus_slaveID = 1;
-uint16_t g_modbus_baud = 9600;
-uint8_t g_modbus_data_size = 8;
-uint8_t g_modbus_stop_bit = 1;
-uint8_t g_modbus_parity = 0;
-mb_conf g_modbus_config[MODBUS_NB_CONFIG];
-uint8_t g_modbus_cf_stt;
-LIFO_inst g_q;
-uint16_t g_uprate = UPRATE_DEFAUT;
+
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
 uint32_t time_blink=0;
-uint32_t crc32_firmwave=0;
-uint64_t count=0;
+
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 volatile uint8_t SCI1_rxdone=0;
-volatile uint8_t g_ota=0;
 uint16_t g_rx1_cnt;
 uint8_t cntTimeRev1;
 char g_rx1_buffer[MAX_BUFFER_UART1];
-char g_ota_buffer[MAX_BUFFER_UART1];
-uint8_t flag_end_frame=0;
+
 extern uint8_t data_ota[];
 extern uint8_t page_offset;
 /* USER CODE END PTD */
@@ -108,17 +96,11 @@ static void MX_CRC_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//void send_to_esp(char *string)
-//{
-//	uint16_t len = strlen (string);
-//	HAL_UART_Transmit(&huart1, (uint8_t *) string, len, HAL_MAX_DELAY);
-//}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(!g_ota)
-	{
-		SCI1_rxdone=1;
-		HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
+	SCI1_rxdone=1;
+	HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
 		if(g_rx1_cnt < MAX_BUFFER_UART1)
 		{
 			g_rx1_buffer[g_rx1_cnt++] = g_rx1_char;
@@ -128,23 +110,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			memset(g_rx1_buffer,0,sizeof(g_rx1_buffer));
 		}
 		cntTimeRev1 = RECV_END_TIMEOUT;
-	}
-	else
-	{
-		HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,sizeof(g_rx1_char));
-		if(g_rx1_cnt < MAX_BUFFER_UART1)
-				{
-					g_rx1_buffer[g_rx1_cnt++] = g_rx1_char;
-				}
-				else{
-					g_rx1_cnt = 0;
-					memset(g_ota_buffer,0,sizeof(g_rx1_buffer));
-					memcpy(g_ota_buffer,g_rx1_buffer,sizeof(g_rx1_buffer));
-					flag_end_frame=1;
-					memset(g_rx1_buffer,0,sizeof(g_rx1_buffer));
-				}
-				cntTimeRev1 =2000;
-	}
 }
 
 DIR dir;
@@ -237,17 +202,11 @@ int main(void)
 //		  	  send_to_esp("Debug newdata \n");
 	  	  	  flag_handle_csv =0;
 	  	  }
-	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD && !g_ota)
+	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
 	  		{
 	  			EspCmdHandler();
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
-	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD && g_ota &&flag_end_frame)
-	  	  		{
-	  	  			EspOtaHandler();
-	  	  		flag_end_frame =0;
-	  	  			g_espcomm_tick = HAL_GetTick();
-	  	  		}
 	  if(HAL_GetTick()-time_blink >1000)
 	  {
 		  time_blink = HAL_GetTick();
