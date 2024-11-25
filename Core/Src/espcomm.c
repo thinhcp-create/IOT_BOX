@@ -6,8 +6,10 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "FLASH_PAGE_F1.h"
+#include "fatfs.h"
 
 char SendDebugtoMqtt[MQTT_BUFF_SIZE];
+char SendParameterstoMqtt[MQTT_BUFF_SIZE*2]; //Store MQTT messages of Parameters
 volatile uint8_t g_ota=0;
 uint32_t crc32_firmwave=0;
 extern UART_HandleTypeDef huart1;
@@ -24,7 +26,7 @@ extern uint16_t g_rx1_cnt;
 extern uint8_t g_isMqttPublished;
 extern uint32_t calculate_crc32(const void *data, size_t length);
 extern CRC_HandleTypeDef hcrc;
-uint16_t count=0;
+extern SD_HandleTypeDef hsd;
 
 
 // Dành cho ota
@@ -40,8 +42,6 @@ firmware_update_info_t fwUpdateInfo = {0};
 extern uint8_t Timer_frame_ota;
 #define OTA_BUFFER_SIZE FLASH_PAGE_SIZE
 #define CHUNK_SIZE      256
-
-// Mảng đệm và chỉ số hiện tại
 static uint8_t data_ota[OTA_BUFFER_SIZE]={0};
 static uint8_t process_count = 0;
 static uint16_t ota_index = 0;
@@ -111,26 +111,21 @@ void debugPrint(const char *fmt, ...)
 		va_start(arg, fmt);
 		vsprintf(buff, fmt, arg);
 		va_end(arg);
-		sprintf(buff2,"@>%03d%s",strlen(buff),buff);
+		sprintf(buff2,"@>%03d%s ",strlen(buff),buff);
 		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),100);
 	 }
 }
-void mqtt_data_send(const char *fmt,...)
+void mqtt_data_send(char* data)
 {
-		char buff[600] = {0};
-		char buff2[602] = {0};
-		va_list arg;
-		va_start(arg, fmt);
-		vsprintf(buff, fmt, arg);
-		va_end(arg);
-		sprintf(buff2,"%%%s",buff);
-		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),100);
+	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
+	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
+	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
 
 }
 void mqtt_debug_send(char* data)
 {
 	memset(SendDebugtoMqtt,0,sizeof(SendDebugtoMqtt));
-	sprintf(SendDebugtoMqtt,"@>%03d%s",strlen(data),data);
+	sprintf(SendDebugtoMqtt,"@>%03d%s ",strlen(data),data);
 	HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),100);
 }
 void mqtt_saved_data_send(char* data)
@@ -156,7 +151,7 @@ void info()
 	debugPrint("M[%d] Time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec);
 //	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 //	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
-	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, g_NbSector);
+	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
 //	TestFlash();
 	g_debugEnable =0;
 }
@@ -311,6 +306,9 @@ void GeneralCmd()
 		{
 			g_forcesend =1;
 			debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
+			uint8_t data_force_send[50];
+			sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tdi1:%01d\tdi2:%01d\tdi3:%01d\tdi4:%01d\t",g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
+			mqtt_data_send((char *)data_force_send);
 		}
 //		else if(strncmp(g_rx1_buffer+i,"c:appinit:",10)==0)
 //		{
@@ -435,119 +433,73 @@ void GeneralCmd()
 			HAL_UART_Transmit(&huart2,(uint8_t *)tmp, strlen(tmp), 100);
 			HAL_GPIO_WritePin(RS485_DE_GPIO_Port,RS485_DE_Pin,0);
 		}
+		else if(strncmp(g_rx1_buffer+i,"[SD_CHECK",9)==0)
+			{
+			if(BSP_SD_Init()==MSD_OK)
+			  {
+				g_debugEnable = 1;
+				debugPrint("[SD_CHECK,1,]");
+				g_debugEnable = 0;
+			  }
+			else
+			  {
+				g_debugEnable = 1;
+				debugPrint("[SD_CHECK,0,]");
+				g_debugEnable = 0;
+			  }
+			}
 		// Dành cho ota thiết bị hallet uv
 		else if(strncmp(g_rx1_buffer+i,"c:hvbegin:",10)==0)
-								{
-									g_debugEnable = 1;
-									fwUpdateInfo.firmwareSize = atoi(g_rx1_buffer+i+10);
-									fwUpdateInfo.isNeedUpdateFirmware=0;
-									fwUpdateInfo.crc32=0;
-									g_ota=1;
-									Timer_frame_ota =10;
-									crc32_firmwave=0;
-									memset(data_ota,0xFF,2048);
-									HAL_UART_Transmit(&huart1,(uint8_t *)"ok",2,100);
-		//
-						}
+		{
+			g_debugEnable = 1;
+			fwUpdateInfo.firmwareSize = atoi(g_rx1_buffer+i+10);
+			fwUpdateInfo.isNeedUpdateFirmware=0;
+			fwUpdateInfo.crc32=0;
+			g_ota=1;
+			Timer_frame_ota =10;
+			crc32_firmwave=0;
+			memset(data_ota,0xFF,2048);
+			HAL_UART_Transmit(&huart1,(uint8_t *)"ok",2,100);
+		}
 		else if(strncmp(g_rx1_buffer+i,"c:hvend:",8)==0)
-										{
-		//									g_debugEnable = 1;
-											g_ota=0;
+		{
+			g_ota=0;
+			if(ota_index != 0)
+			{
+				Process_OTA_Data(data_ota, ota_index,process_count);
+//				fwUpdateInfo.firmwareSize = fwUpdateInfo.firmwareSize+ota_index;
+				process_count=0;
+				ota_index=0;
+			}
 
-											if(ota_index != 0)
-											{
-												Process_OTA_Data(data_ota, ota_index,process_count);
-												fwUpdateInfo.firmwareSize = fwUpdateInfo.firmwareSize+ota_index;
-												process_count=0;
-												ota_index=0;
-											}
-
-											memset(data_ota, 0, OTA_BUFFER_SIZE);
-											if(atoi(g_rx1_buffer+8)==crc32_firmwave)
-												{
-		//												fwUpdateInfo.firmwareSize = process_count * FLASH_PAGE_SIZE;
-														fwUpdateInfo.isNeedUpdateFirmware = 1;
-														fwUpdateInfo.crc32 = HAL_CRC_Calculate(&hcrc,(uint32_t*)&fwUpdateInfo, 2);
-														Flash_Write_Data(FLASH_ADDR_FIRMWARE_UPDATE_INFO,(uint32_t*)&fwUpdateInfo,3);
-														HAL_UART_Transmit(&huart1, "ok",2,100);
-														__disable_irq();
-														HAL_NVIC_SystemReset();
-												}
-										}
+			memset(data_ota, 0, OTA_BUFFER_SIZE);
+			if(atoi(g_rx1_buffer+8)==crc32_firmwave)
+			{
+				fwUpdateInfo.isNeedUpdateFirmware = 1;
+				fwUpdateInfo.crc32 = HAL_CRC_Calculate(&hcrc,(uint32_t*)&fwUpdateInfo, 2);
+				Flash_Write_Data(FLASH_ADDR_FIRMWARE_UPDATE_INFO,(uint32_t*)&fwUpdateInfo,3);
+				HAL_UART_Transmit(&huart1, "ok",2,100);
+				__disable_irq();
+				HAL_NVIC_SystemReset();
+			}
+		}
 	}
-		else if(strncmp(g_rx1_buffer+i,"c:hvota:",8)==0)
+	else 	if(strncmp(g_rx1_buffer+i,"c:hvota:",8)==0)
+			{
+				g_debugEnable = 1;
+				Timer_frame_ota =10;
+				if(g_rx1_cnt>260)
 				{
-					g_debugEnable = 1;
-					Timer_frame_ota =10;
-					if(g_rx1_cnt>260)
+					if(g_rx1_buffer[264]==CalcSumData(g_rx1_buffer,264))
 					{
-						if(g_rx1_buffer[264]==CalcSumData(g_rx1_buffer,264))
-											{
-												Timer_frame_ota = 10;
-												Handle_OTA_Chunk(g_rx1_buffer+8,256);
-												memset(g_rx1_buffer,0xFF, 265);
-												HAL_UART_Transmit(&huart1,(uint8_t *) "ok",2,10);
-//												if(fwUpdateInfo.firmwareSize == (process_count)*OTA_BUFFER_SIZE)
-//																        {
-//
-////																        	process_count = 0;
-////																        	g_ota =0;
-//																			count++;
-//																        }
-
-
-											}
+						Timer_frame_ota = 10;
+						Handle_OTA_Chunk(g_rx1_buffer+8,256);
+						memset(g_rx1_buffer,0xFF, 265);
+						HAL_UART_Transmit(&huart1,(uint8_t *) "ok",2,10);
 					}
-
-//					g_debugEnable = 0;
 				}
-
-//		else if(strncmp(g_rx1_buffer+i,"c:hvend:",8)==0)
-//								{
-//									g_debugEnable = 1;
-//									g_ota=0;
-//									if(atoi(g_rx1_buffer+8)==crc32_firmwave)
-//										{
-//												fwUpdateInfo.firmwareSize = process_count * FLASH_PAGE_SIZE;
-//												fwUpdateInfo.isNeedUpdateFirmware = 0;
-//												fwUpdateInfo.crc32 = HAL_CRC_Calculate(&hcrc,(uint32_t*)&fwUpdateInfo, 2);
-//												Flash_Write_Data(FLASH_ADDR_FIRMWARE_UPDATE_INFO,(uint32_t*)&fwUpdateInfo,3);
-//												HAL_UART_Transmit(&huart1, "ok",2,100);
-////								//				__disable_irq();
-////								//				HAL_NVIC_SystemReset();
-//										}
-////
-////
-////
-//								}
-//		else if(strncmp(g_rx1_buffer+i,"[SD_CHECK",9)==0)
-//		{
-//			uint8_t st = USER_SPI_initialize (0);
-//			if(!st)
-//			{
-//				uint32_t cnt;
-//				DRESULT dr = USER_SPI_ioctl(0, GET_SECTOR_COUNT, &cnt);
-//				if(!dr)
-//				{
-//					g_NbSector = cnt;
-//					g_debugEnable = 1;
-//					debugPrint("[SD_CHECK,0,]");
-//					g_debugEnable = 0;
-//				}
-//				else
-//				{
-//					g_debugEnable = 1;
-//					debugPrint("[SD_CHECK,1,]");
-//					g_debugEnable = 0;
-//				}
-//			}
-//			else
-//			{
-//				g_debugEnable = 1;
-//				debugPrint("[SD_CHECK,1,]");
-//				g_debugEnable = 0;
-//			}
-//		}
+			}
+//
 //		else if(strncmp(g_rx1_buffer+i,"[WD_CHECK",9)==0)
 //		{
 //			WDI_MCU = 0;
