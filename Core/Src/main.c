@@ -216,7 +216,7 @@ int main(void)
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
 
-	  if(HAL_GetTick()-time_force_send >27123)
+	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD)
 	  {
 		  time_force_send = HAL_GetTick();
 		  g_debugEnable=1;
