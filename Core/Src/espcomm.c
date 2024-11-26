@@ -27,6 +27,7 @@ extern uint8_t g_isMqttPublished;
 extern uint32_t calculate_crc32(const void *data, size_t length);
 extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
+extern uint8_t flag_readSD;
 
 
 // Dành cho ota
@@ -181,6 +182,8 @@ void GeneralCmd()
 		if(strncmp(g_rx1_buffer+i,"c:rst",5)==0)
 		{
 			debugPrint("M[%d] MCU Reset ",HAL_GetTick()/1000);
+			__disable_irq();
+			HAL_DeInit();
 			HAL_NVIC_SystemReset();
 		}
 		if(strncmp(g_rx1_buffer+i,"c:info",6)==0)
@@ -321,14 +324,20 @@ void GeneralCmd()
 			g_debugEnable = atoi(g_rx1_buffer+i+7);
 			debugPrint("M[%d] Debug Enable",HAL_GetTick()/1000);
 		}
-//		else if(strncmp(g_rx1_buffer+i,"c:uprate:",9)==0)
-//		{
-//			uint32_t tmp = atoi(g_rx1_buffer+i+9);
-//			if(tmp<UPRATE_MIN) g_uprate = UPRATE_DEFAUT;
-//			else g_uprate = tmp;
-////			SaveDeviceInfo();
-//			g_forcesend=1;
-//		}
+		else if(strncmp(g_rx1_buffer+i,"c:sd",4)==0)
+		{
+
+			if(BSP_SD_Init()==MSD_OK)
+			{
+				mqtt_debug_send("Wait for read sd card");
+				flag_readSD=1;
+			}
+			else
+			{
+				mqtt_debug_send("SD card not available\n");
+			}
+
+		}
 		else if(strncmp(g_rx1_buffer+i,"[IN_CHECK,1",11)==0)
 		{
 			g_debugEnable = 1;
@@ -480,6 +489,7 @@ void GeneralCmd()
 				Flash_Write_Data(FLASH_ADDR_FIRMWARE_UPDATE_INFO,(uint32_t*)&fwUpdateInfo,3);
 				HAL_UART_Transmit(&huart1, "ok",2,100);
 				__disable_irq();
+				HAL_DeInit();
 				HAL_NVIC_SystemReset();
 			}
 		}

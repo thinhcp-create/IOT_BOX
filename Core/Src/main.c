@@ -34,7 +34,7 @@
 
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
-uint8_t flag_readSD=0,flag_reload=0;
+uint8_t flag_readSD=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
 rtc_time g_time=
@@ -65,8 +65,6 @@ uint16_t g_rx1_cnt;
 uint8_t cntTimeRev1;
 char g_rx1_buffer[MAX_BUFFER_UART1];
 
-extern uint8_t data_ota[];
-extern uint8_t page_offset;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -124,7 +122,6 @@ FILINFO fno;
 FRESULT fresult;
 FATFS *pfs;
 DWORD fre_clust;
-uint64_t time=0,time_reload=0;
 
 uint32_t crc32_table[256]={0};
 
@@ -198,7 +195,17 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+  HAL_Delay(1000);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+  if(BSP_SD_Init()==MSD_OK)
+  {
+	 mqtt_debug_send("SD card available\n");
+  }
+  else
+  {
+	 mqtt_debug_send("SD card not available\n");
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -210,13 +217,18 @@ int main(void)
 	  		  FS_FileOperations();
 	  	  	  flag_handle_csv =0;
 	  	  }
+	  if (flag_readSD ==1 &&(g_ota==0||Timer_frame_ota == 0) )
+	  	  	  {
+	  	  		  SD_FileOperations();
+	  	  		  flag_readSD =0;
+	  	  	  }
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
 	  		{
 	  			EspCmdHandler();
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
 
-	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD)
+	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD&&(g_ota==0||Timer_frame_ota == 0))
 	  {
 		  time_force_send = HAL_GetTick();
 		  g_debugEnable=1;
@@ -653,25 +665,17 @@ char lineBuffer[256];
 
 void ReadFirstLineFromFile(const char* filename)
 {
-//	send_debug("Debug ReadFirstLineFromFile\n");
 	memset(lineBuffer,0,sizeof(lineBuffer));
 	memset(ramtoSD,0,sizeof(ramtoSD));
     // M? file CSV c?n d?c
     res = f_open(&USERFile, filename, FA_READ);
     if (res == FR_OK) {
-//    	send_debug("Debug while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL)\n");
 			while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL) {
-//				debugPrint(lineBuffer);
-//				debugPrint("\n");
-//				send_to_esp(lineBuffer);
-//				send_to_esp("\n");
 				process_data(lineBuffer, filename);
 
     }
 
-
         f_close(&USERFile);
-        flag_reload=1;
         res = f_open(&USERFile, filename, FA_READ);
         if (res == FR_OK) {
                 f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
@@ -679,9 +683,7 @@ void ReadFirstLineFromFile(const char* filename)
         }
         res = f_mount(NULL, (TCHAR const*)USERPath, 1);
         SD_FATFS_Init();
-//        send_debug("Debug SD_FATFS_Init\n");
         fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
-//        send_debug("Debug f_mount(&SDFatFS, (TCHAR const*)SDPath,1)\n");
         if(fresult == FR_OK)
         {
         			fresult = f_stat(filename, &fno);
@@ -768,6 +770,43 @@ void FS_FileOperations()
  //
 
 }
+
+void SD_FileOperations()
+{
+
+  /* Register the file system object to the FatFs module */
+	SD_FATFS_Init();
+	res = f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+  if(res == FR_OK)
+  {
+          /* Open the text file object with read access */
+					res = f_opendir(&dir, (TCHAR const*)SDPath);
+					if (res == FR_OK) {
+						do {
+											memset(fno.fname,0,sizeof(fno.fname));
+											res = f_readdir(&dir, &fno);
+
+										// Ki?m tra n?u không còn file nào
+										if (res != FR_OK || fno.fname[0] == 0) {
+												break;
+										}
+
+										// B? qua thu m?c
+										if (fno.fattrib & AM_DIR) {
+											mqtt_debug_send("Found folder\n");
+										}
+
+										// Ki?m tra n?u file có ph?n m? r?ng .csv
+										if (strstr(fno.fname, ".CSV") != NULL) {
+											mqtt_debug_send(fno.fname);
+										}
+
+									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
+						res= f_closedir(&dir);
+					}
+  }
+}
+
 /* USER CODE END 4 */
 
 /**
