@@ -29,7 +29,9 @@
 #include "user_diskio.h" /* defines USER_Driver as external */
 
 /* USER CODE BEGIN Includes */
-
+ void SD_FATFS_Init(void);
+ void RAM_FATFS_Init(void);
+ DWORD convert_to_fattime(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
 /* USER CODE END Includes */
 
 extern uint8_t retSD; /* Return value for SD */

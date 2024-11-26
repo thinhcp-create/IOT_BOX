@@ -32,23 +32,30 @@
 #define ADDR_APP_PROGRAM 0x08008000
 #define CRC32_POLYNOMIAL 0x04C11DB7
 
-extern USBD_HandleTypeDef hUsbDeviceFS;
-extern PCD_HandleTypeDef hpcd_USB_FS;
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
-extern uint8_t flag_write_page_ota;
 uint8_t flag_readSD=0,flag_reload=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
-rtc_time g_time;
+rtc_time g_time=
+		{
+				.year=2024,
+				.month=11,
+				.date = 25,
+				.hour = 16,
+				.min = 47,
+				.sec = 30
+		};
 
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
-uint32_t time_blink=0;
+uint32_t time_force_send=0;
 
-
+//Dành cho ota
+extern uint8_t g_ota;
+extern uint8_t Timer_frame_ota;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -162,6 +169,7 @@ int main(void)
 	__enable_irq();
 	create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
 	generate_crc32_table();
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -190,16 +198,16 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (flag_handle_csv ==1 )
+	  if (flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0) )
 	  	  {
 	  		  FS_FileOperations();
-//		  	  send_to_esp("Debug newdata \n");
 	  	  	  flag_handle_csv =0;
 	  	  }
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
@@ -207,11 +215,16 @@ int main(void)
 	  			EspCmdHandler();
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
-	  if(HAL_GetTick()-time_blink >1000)
-	  {
-		  time_blink = HAL_GetTick();
-		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 
+	  if(HAL_GetTick()-time_force_send >27123)
+	  {
+		  time_force_send = HAL_GetTick();
+		  g_debugEnable=1;
+		  debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
+		  g_debugEnable=0;
+		  uint8_t data_force_send[50];
+		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tdi1:%01d\tdi2:%01d\tdi3:%01d\tdi4:%01d\t",g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
+		  mqtt_data_send((char *)data_force_send);
 	  }
     /* USER CODE END WHILE */
 
@@ -312,9 +325,9 @@ static void MX_SDIO_SD_Init(void)
   hsd.Init.ClockEdge = SDIO_CLOCK_EDGE_RISING;
   hsd.Init.ClockBypass = SDIO_CLOCK_BYPASS_DISABLE;
   hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
-  hsd.Init.BusWide = SDIO_BUS_WIDE_4B;
+  hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
   hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-  hsd.Init.ClockDiv = 0;
+  hsd.Init.ClockDiv = 3;
   /* USER CODE BEGIN SDIO_Init 2 */
 
   /* USER CODE END SDIO_Init 2 */
@@ -337,7 +350,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 38400;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -405,7 +418,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin|RST_WIFI_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(RST_WIFI_GPIO_Port, RST_WIFI_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
@@ -486,35 +502,35 @@ void format_data(char *data, char *final_string) {
     // Danh sách các nhãn cho từng mục
 
     const char *labels[] = {
-        "time", "TreatSt", "UvDose", "UVT", "UVI", "LLamp", "LWater", "RLamp", "RWater", "PCBtem",
-        "SYSTem", "WTemp", "LTemp", "ALARM", "WARN", "OUTPUT", "24volt", "INPUT", "FanUV", "FanPCB",
-        "Heat1", "Heat2", "SysSt", "PurgeSt", "UVFanSt", "WiperSt", "PurgeVl", "I2CBusy", "I2CTO",
-        "I2CErr", "I2CGood", "I2CChan", "IOGood"
+        "time", "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
+        "ST", "WAT", "LT", "AL", "WN", "OT", "24V", "IT", "FUV", "FCB",
+        "H1", "H2", "SS", "PS", "UVF", "WPS", "PV", "ICB", "ICT",
+        "ICE", "ICG", "ICC", "IOG"
     };
     const char *alarm_labels[] ={
-    		  "a_LowUVLamp",
-    		  "a_IOI2C_err",
-    		  "a_Dose",
-    		  "a_LampNtStrik",
+    		  "ALL",
+    		  "AIE",
+    		  "AD",
+    		  "ALS",
     		  "Not_Used_0"	,
-    		  "a_PCBtmpTooHigh",
-    		  "a_Sys_tmp",
-    		  "a_LmpNoOutput",
-    		  "a_FrtPanelAjar",
-    		  "a_UVSensor",
-    		  "a_WaterTmp"
+    		  "APH",
+    		  "AS",
+    		  "ALP",
+    		  "AA",
+    		  "AUS",
+    		  "AW"
     };
     const char *warn_labels[] = {
-          "w_EndofLmpLife",              // Warning 1
+          "WE",              // Warning 1
           "Not_Used_1",        //         2 --- Not Used
-          "w_WiperNtTurn",             //         3
-          "w_WaterTmpHigh",        //         4
-          "w_SysTmpLimit",             //         5
-          "w_WaterTmpSen",             //         6
-          "w_UVTmpSen",                //         7
+          "WW",             //         3
+          "WH",        //         4
+          "WL",             //         5
+          "WWS",             //         6
+          "WUS",                //         7
           "Not_Used_2",     //         8 --- Not Used
-          "w_SysTmpSen",            //         9
-          "w_LmpLifetime"
+          "WS",            //         9
+          "WT"
     };
 
     // Sử dụng strtok để tách chuỗi
@@ -545,7 +561,7 @@ void format_data(char *data, char *final_string) {
         }
         index++;
     }
-    if (strstr(final_string,"ALARM")!= NULL)
+    if (strstr(final_string,labels[13])!= NULL)
     {
     	for(uint8_t i = alarm_Low_UV_Lamp;i<alarm_water_temp+1;i++)
     	{  if(i != Not_Used_0)
@@ -557,7 +573,7 @@ void format_data(char *data, char *final_string) {
     		};
     	}
     }
-    if (strstr(final_string,"WARN")!= NULL)
+    if (strstr(final_string,labels[14])!= NULL)
         {
         	for(uint8_t i = warn_End_of_Lamp_Life;i<warn_Lamp_Lifetime+1;i++)
         	{  if(i != Not_Used_1 && i!= Not_Used_2)
@@ -569,12 +585,27 @@ void format_data(char *data, char *final_string) {
         		};
         	}
         }
-    final_string[strlen(final_string)-1]= '\n';
+    final_string[strlen(final_string)-1]= '\t';
 }
+void parse_date(const char *date_str, rtc_time *time) {
+    char year_str[5] = {0};   // Chuỗi năm (4 ký tự + null-terminator)
+    char month_str[3] = {0};  // Chuỗi tháng (2 ký tự + null-terminator)
+    char day_str[3] = {0};    // Chuỗi ngày (2 ký tự + null-terminator)
 
+    // Tách năm, tháng, ngày từ chuỗi gốc
+    strncpy(year_str, date_str, 4);   // Lấy 4 ký tự đầu tiên (năm)
+    strncpy(month_str, date_str + 4, 2); // Lấy 2 ký tự tiếp theo (tháng)
+    strncpy(day_str, date_str + 6, 2);   // Lấy 2 ký tự cuối (ngày)
+
+    // Chuyển đổi chuỗi thành số và lưu vào cấu trúc rtc_time
+    time->year = (uint16_t)atoi(year_str);
+    time->month = (uint8_t)atoi(month_str);
+    time->date = (uint8_t)atoi(day_str);
+}
+char extracted_csv[20] = {0};
 void process_data(char *data,const char *filename)
 {
-    char extracted_csv[20] = {0};
+
     char formatted_time[20] = {0};
     char final_data[512] = {0};  // Dữ liệu kết quả cuối cùng
     char *csv_start = strstr(filename, ".CSV");
@@ -583,6 +614,7 @@ void process_data(char *data,const char *filename)
             strncpy(extracted_csv,filename, csv_start-filename);  // Lấy phần 20240918
         }
     }
+
         int hours, minutes, seconds;
         char *time_start = data;
         // �?�?c định dạng th�?i gian "15:1:15"
@@ -590,13 +622,16 @@ void process_data(char *data,const char *filename)
 
         // �?ịnh dạng lại thành "15,01,15"
         snprintf(formatted_time, sizeof(formatted_time), "%02d,%02d,%02d", hours, minutes, seconds);
-
+        g_time.hour= hours;
+        g_time.min= minutes;
+        g_time.sec= seconds;
         // B�? qua phần th�?i gian trong chuỗi để lấy phần dữ liệu tiếp theo
         char *data_start = strchr(time_start, ',');
         if (data_start != NULL && *(data_start+1) != '\0' && *(data_start+1) != '\n') {
             data_start += 1;  // B�? qua dấu phẩy đầu tiên
             // Bước 3: Kết hợp chuỗi đã xử lý với phần dữ liệu còn lại
             snprintf(final_data, sizeof(final_data), "%s,%s,%s", extracted_csv, formatted_time, data_start);
+            parse_date(extracted_csv,&g_time);
             memset(format_string,0,1024);
             format_data(final_data,format_string);
             // In ra kết quả cuối cùng
@@ -636,83 +671,51 @@ void ReadFirstLineFromFile(const char* filename)
 
 
         f_close(&USERFile);
-//        memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR );
-        create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-//        __HAL_RCC_USB_CLK_DISABLE();
-              USB->CNTR |= USB_CNTR_FRES;       // �?ưa USB vào trạng thái reset
-//              USB->CNTR &= ~(USB_CNTR_PDWN | USB_CNTR_LP_MODE); // Tắt chế độ low-power và power-down
-              HAL_Delay(10000);
-              // 1. B�? trạng thái reset của USB
-          USB->CNTR &= ~USB_CNTR_FRES;
-
-                  // 3. Khởi động lại USB Peripheral (nếu dùng HAL)
-//          HAL_PCD_Start(&hpcd_USB_FS);
-          MX_USB_DEVICE_Init();
-//          USB->BCDR &= ~USB_BCDR_DPPU;  // Tắt pull-up trên D+
-          HAL_Delay(100);
-//          USB->BCDR |= USB_BCDR_DPPU;   // Bật pull-up trên D+
-          HAL_Delay(100);
-          HAL_PCD_Init(&hpcd_USB_FS);
-          HAL_PCD_Start(&hpcd_USB_FS); // Bắt đầu lại USB
-// Ch�? Host nhận diện kết nối lại
-// Ch�? một chút để Host nhận diện ngắt kết nối
-
-
-
-
-//        USB_CNTR_FRES =0;
-//        __HAL_RCC_USB_CLK_ENABLE();
-//        flag_reload=1;
-//        USBD_Stop(&hUsbDeviceFS);
-//        HAL_Delay(100);
-//        USBD_Start(&hUsbDeviceFS);
-//        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12);
-//        HAL_Delay(100);
-//        HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12);
-//        res = f_open(&USERFile, filename, FA_WRITE | FA_CREATE_ALWAYS);
-//        f_close(&USERFile);
-//        res = f_open(&USERFile, filename, FA_READ);
-//        if (res == FR_OK) {
-//                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
-//                f_close(&USERFile);
-//        }
-//        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-//        SD_FATFS_Init();
-////        send_debug("Debug SD_FATFS_Init\n");
-//        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
-////        send_debug("Debug f_mount(&SDFatFS, (TCHAR const*)SDPath,1)\n");
-//        if(fresult == FR_OK)
-//        {
-//        			fresult = f_stat(filename, &fno);
-//        	        second_line = &ramtoSD[0];
-//        	        if (fresult == FR_OK) {
-//        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
-//        	        	 if (newline_pos != NULL) {
-//        	        		 *newline_pos = '\0';
-//        	        		  second_line = newline_pos + 2;
-//        	        	 }
-//        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-//        	        }else fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
-//        	        f_lseek(&SDFile, f_size(&SDFile));
-//        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
-//        	        if (fresult == FR_OK)
-//        	        	{
-//        	        		send_to_esp("Debug write data to SD successed\n");
-//        	        		send_uart("Write data to SD successed\n");
-//        	        	}
-//        	        f_close(&SDFile);
-////        	        send_debug("Debug f_close(&SDFile)\n");
-//        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
-//        }
+        flag_reload=1;
+        res = f_open(&USERFile, filename, FA_READ);
+        if (res == FR_OK) {
+                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
+                f_close(&USERFile);
+        }
+        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+        SD_FATFS_Init();
+//        send_debug("Debug SD_FATFS_Init\n");
+        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
+//        send_debug("Debug f_mount(&SDFatFS, (TCHAR const*)SDPath,1)\n");
+        if(fresult == FR_OK)
+        {
+        			fresult = f_stat(filename, &fno);
+        	        second_line = &ramtoSD[0];
+        	        if (fresult == FR_OK) {
+        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
+        	        	 if (newline_pos != NULL) {
+        	        		 *newline_pos = '\0';
+        	        		  second_line = newline_pos + 2;
+        	        	 }
+        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+        	        }else fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+        	        f_lseek(&SDFile, f_size(&SDFile));
+        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
+        	        if (fresult == FR_OK)
+        	        	{
+        	        	mqtt_debug_send("Write data to SD successed\n");
+        	        	}
+        	        f_close(&SDFile);
+        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
+        }
 
     } else {
     	debugPrint("Could not open file in RAM\n");
     }
-//    memset(buffer,0,STORAGE_BLK_SIZ  * STORAGE_BLK_NBR);
-////    send_debug("Debug Read end\n");
+    memset(lineBuffer,0,sizeof(lineBuffer));
+    memset(ramtoSD,0,sizeof(ramtoSD));
+    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
+    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+    HAL_Delay(2000);
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 //    HAL_IWDG_Refresh(&hiwdg1);
 //    HAL_NVIC_SystemReset();
-//
 }
 
 
