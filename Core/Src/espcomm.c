@@ -170,7 +170,35 @@ bool UART1_IsDoneFrame(void)
 	return false;
 }
 
+void FullSystemReset(void)
+{
+    // 1. Tắt tất cả GPIO (nếu không cần thiết sẽ giữ lại trạng thái)
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_All);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_All);
+    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_All);
+    HAL_GPIO_DeInit(GPIOD, GPIO_PIN_All);
+    // Thêm các cổng GPIO khác nếu cần (GPIOC, GPIOD...)
 
+    // 2. Tắt các ngoại vi đã bật
+    HAL_DeInit(); // Hủy khởi tạo toàn bộ ngoại vi theo HAL
+
+    // 3. Reset thủ công tất cả các ngoại vi chính
+    __HAL_RCC_GPIOA_FORCE_RESET();
+    __HAL_RCC_GPIOA_RELEASE_RESET();
+    __HAL_RCC_GPIOB_FORCE_RESET();
+    __HAL_RCC_GPIOB_RELEASE_RESET();
+    // Thêm các reset ngoại vi khác nếu cần
+
+    // 4. Xóa cấu hình của Vector Table
+    __set_MSP(*(__IO uint32_t*)0x08000000); // Đặt lại Stack Pointer
+    SCB->VTOR = 0x08000000;                // Đặt Vector Table về Flash
+
+
+    // 5. Reset hệ thống bằng lệnh NVIC
+    __disable_irq();          // Tắt ngắt
+    HAL_NVIC_SystemReset();   // Reset toàn bộ vi điều khiển
+}
 
 
 void GeneralCmd()
@@ -182,9 +210,7 @@ void GeneralCmd()
 		if(strncmp(g_rx1_buffer+i,"c:rst",5)==0)
 		{
 			debugPrint("M[%d] MCU Reset ",HAL_GetTick()/1000);
-			__disable_irq();
-			HAL_DeInit();
-			HAL_NVIC_SystemReset();
+			FullSystemReset();
 		}
 		if(strncmp(g_rx1_buffer+i,"c:info",6)==0)
 		{
@@ -488,9 +514,7 @@ void GeneralCmd()
 				fwUpdateInfo.crc32 = HAL_CRC_Calculate(&hcrc,(uint32_t*)&fwUpdateInfo, 2);
 				Flash_Write_Data(FLASH_ADDR_FIRMWARE_UPDATE_INFO,(uint32_t*)&fwUpdateInfo,3);
 				HAL_UART_Transmit(&huart1, "ok",2,100);
-				__disable_irq();
-				HAL_DeInit();
-				HAL_NVIC_SystemReset();
+				FullSystemReset();
 			}
 		}
 	}

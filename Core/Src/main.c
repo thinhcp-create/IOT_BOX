@@ -195,8 +195,8 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-  HAL_Delay(1000);
+//  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+//  HAL_Delay(1000);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
   if(BSP_SD_Init()==MSD_OK)
   {
