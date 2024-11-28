@@ -22,6 +22,7 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "espcomm.h"
 /* USER CODE END Includes */
 
 /* External functions --------------------------------------------------------*/
@@ -84,6 +85,7 @@ void NMI_Handler(void)
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
    while (1)
   {
+
   }
   /* USER CODE END NonMaskableInt_IRQn 1 */
 }
@@ -99,6 +101,8 @@ void HardFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+	 FullSystemReset();
+	 mqtt_debug_send("After HardFault_Handler, should never be reached.\n");
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }

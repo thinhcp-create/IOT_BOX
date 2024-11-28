@@ -34,9 +34,9 @@ extern rtc_time g_time;
 void MX_FATFS_Init(void)
 {
   /*## FatFS: Link the SD driver ###########################*/
-//  retSD = FATFS_LinkDriver(&SD_Driver, SDPath);
+  retSD = FATFS_LinkDriver(&SD_Driver, SDPath);
   /*## FatFS: Link the USER driver ###########################*/
-  retUSER = FATFS_LinkDriver(&USER_Driver, USERPath);
+//  retUSER = FATFS_LinkDriver(&USER_Driver, USERPath);
 
   /* USER CODE BEGIN Init */
   /* additional user code for init */
@@ -70,7 +70,7 @@ void SD_FATFS_Init(void)
 void RAM_FATFS_Init(void)
 {
 	/*## FatFS: Link the USER driver ###########################*/
-	  retUSER = FATFS_UnLinkDriver(SDPath);
+		retSD = FATFS_UnLinkDriver(SDPath);
 
 	  /* USER CODE BEGIN Init */
 	  retUSER = FATFS_LinkDriver(&USER_Driver, USERPath);

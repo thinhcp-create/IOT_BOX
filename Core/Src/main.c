@@ -206,6 +206,7 @@ int main(void)
   {
 	 mqtt_debug_send("SD card not available\n");
   }
+  RAM_FATFS_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -339,7 +340,7 @@ static void MX_SDIO_SD_Init(void)
   hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
   hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
   hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-  hsd.Init.ClockDiv = 3;
+  hsd.Init.ClockDiv = 10;
   /* USER CODE BEGIN SDIO_Init 2 */
 
   /* USER CODE END SDIO_Init 2 */
@@ -662,7 +663,6 @@ char lineBuffer[256];
  UINT br=0,bw=0;
 
  uint8_t *second_line;
-
 void ReadFirstLineFromFile(const char* filename)
 {
 	memset(lineBuffer,0,sizeof(lineBuffer));
@@ -695,8 +695,10 @@ void ReadFirstLineFromFile(const char* filename)
         	        		  second_line = newline_pos + 2;
         	        	 }
         	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-        	        }else fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+        	        }else  fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
         	        f_lseek(&SDFile, f_size(&SDFile));
+        	        fresult = FR_DISK_ERR;
+        	        mqtt_debug_send((char *)second_line);
         	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
         	        if (fresult == FR_OK)
         	        	{
@@ -704,6 +706,7 @@ void ReadFirstLineFromFile(const char* filename)
         	        	}
         	        f_close(&SDFile);
         	        f_mount(NULL, (TCHAR const*)SDPath, 1);
+        	        RAM_FATFS_Init();
         }
 
     } else {
@@ -714,10 +717,8 @@ void ReadFirstLineFromFile(const char* filename)
     memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
     create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    HAL_Delay(2000);
+    HAL_Delay(1000);
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-//    HAL_IWDG_Refresh(&hiwdg1);
-//    HAL_NVIC_SystemReset();
 }
 
 

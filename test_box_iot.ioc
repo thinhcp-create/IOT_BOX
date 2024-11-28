@@ -2,6 +2,8 @@
 CAD.formats=
 CAD.pinconfig=
 CAD.provider=
+FATFS.IPParameters=_MAX_SS
+FATFS._MAX_SS=1024
 File.Version=6
 GPIO.groupedBy=Group By Peripherals
 KeepUserPlacement=false
@@ -214,7 +216,7 @@ RCC.TimSysFreq_Value=72000000
 RCC.USBFreq_Value=48000000
 RCC.USBPrescaler=RCC_USBCLKSOURCE_PLL_DIV1_5
 RCC.VCOOutput2Freq_Value=8000000
-SDIO.ClockDiv=3
+SDIO.ClockDiv=10
 SDIO.IPParameters=ClockDiv
 USART1.BaudRate=38400
 USART1.IPParameters=VirtualMode,Parity,BaudRate
