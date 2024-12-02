@@ -25,9 +25,6 @@
 #include "espcomm.h"
 /* USER CODE END Includes */
 
-/* External functions --------------------------------------------------------*/
-void SystemClock_Config(void);
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 volatile uint8_t Timer_frame_ota;
@@ -66,6 +63,7 @@ void OTA_Timer_Handler(void)
 
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_FS;
+extern SD_HandleTypeDef hsd;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
@@ -260,23 +258,17 @@ void USART1_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles USB wake-up interrupt through EXTI line 18.
+  * @brief This function handles SDIO global interrupt.
   */
-void USBWakeUp_IRQHandler(void)
+void SDIO_IRQHandler(void)
 {
-  /* USER CODE BEGIN USBWakeUp_IRQn 0 */
+  /* USER CODE BEGIN SDIO_IRQn 0 */
 
-  /* USER CODE END USBWakeUp_IRQn 0 */
-  if ((&hpcd_USB_FS)->Init.low_power_enable) {
-    /* Reset SLEEPDEEP bit of Cortex System Control Register */
-    SCB->SCR &= (uint32_t)~((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-    SystemClock_Config();
-  }
-  /* Clear EXTI pending bit */
-  __HAL_USB_WAKEUP_EXTI_CLEAR_FLAG();
-  /* USER CODE BEGIN USBWakeUp_IRQn 1 */
+  /* USER CODE END SDIO_IRQn 0 */
+  HAL_SD_IRQHandler(&hsd);
+  /* USER CODE BEGIN SDIO_IRQn 1 */
 
-  /* USER CODE END USBWakeUp_IRQn 1 */
+  /* USER CODE END SDIO_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

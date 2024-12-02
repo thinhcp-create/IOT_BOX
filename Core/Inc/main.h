@@ -45,6 +45,7 @@ extern "C" {
 #define ESP_SYNC_PERIOD (30*1000) //ms
 #define BLUE_TOOTH_DURATION (5*60*1000) //ms
 #define ESP_FORCESEND_PERIOD 27123
+#define WDI_PERIOD 50 //ms
 
 #define MANUAL_RESET_HOLD_TIME 3000 //ms
 #define MAX_QUEUE_DATA_MODBUS 145 //= DEVICE_REGISTERS_NUMBER*2+5
@@ -113,6 +114,8 @@ void Error_Handler(void);
 #define RST_WIFI_GPIO_Port GPIOA
 #define LED_Pin GPIO_PIN_0
 #define LED_GPIO_Port GPIOB
+#define WDI_Pin GPIO_PIN_1
+#define WDI_GPIO_Port GPIOB
 #define DO1_Pin GPIO_PIN_12
 #define DO1_GPIO_Port GPIOB
 #define DO2_Pin GPIO_PIN_13

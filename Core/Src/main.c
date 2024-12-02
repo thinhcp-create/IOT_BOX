@@ -52,6 +52,7 @@ uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
 uint32_t time_force_send=0;
+uint32_t time_wdi=0;
 
 //Dành cho ota
 extern uint8_t g_ota;
@@ -218,6 +219,11 @@ int main(void)
 	  		  FS_FileOperations();
 	  	  	  flag_handle_csv =0;
 	  	  }
+	  if(HAL_GetTick()-time_wdi >WDI_PERIOD)
+	  	  {
+	  		  time_wdi= HAL_GetTick();
+	  		  HAL_GPIO_TogglePin(WDI_GPIO_Port,WDI_Pin);
+	  	  }
 	  if (flag_readSD ==1 &&(g_ota==0||Timer_frame_ota == 0) )
 	  	  	  {
 	  	  		  SD_FileOperations();
@@ -239,6 +245,7 @@ int main(void)
 		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tdi1:%01d\tdi2:%01d\tdi3:%01d\tdi4:%01d\t",g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
 		  mqtt_data_send((char *)data_force_send);
 	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -340,7 +347,7 @@ static void MX_SDIO_SD_Init(void)
   hsd.Init.ClockPowerSave = SDIO_CLOCK_POWER_SAVE_DISABLE;
   hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
   hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-  hsd.Init.ClockDiv = 10;
+  hsd.Init.ClockDiv = 16;
   /* USER CODE BEGIN SDIO_Init 2 */
 
   /* USER CODE END SDIO_Init 2 */
@@ -440,6 +447,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
                           |DO4_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(WDI_GPIO_Port, WDI_Pin, GPIO_PIN_SET);
+
   /*Configure GPIO pins : DI4_Pin DI3_Pin DI2_Pin DI1_Pin */
   GPIO_InitStruct.Pin = DI4_Pin|DI3_Pin|DI2_Pin|DI1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -453,10 +463,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED_Pin DO1_Pin DO2_Pin DO3_Pin
-                           DO4_Pin */
-  GPIO_InitStruct.Pin = LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
-                          |DO4_Pin;
+  /*Configure GPIO pins : LED_Pin WDI_Pin DO1_Pin DO2_Pin
+                           DO3_Pin DO4_Pin */
+  GPIO_InitStruct.Pin = LED_Pin|WDI_Pin|DO1_Pin|DO2_Pin
+                          |DO3_Pin|DO4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
