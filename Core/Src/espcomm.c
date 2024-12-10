@@ -7,6 +7,7 @@
 #include "stdio.h"
 #include "FLASH_PAGE_F1.h"
 #include "fatfs.h"
+#include "time.h"
 
 char SendDebugtoMqtt[MQTT_BUFF_SIZE];
 char SendParameterstoMqtt[MQTT_BUFF_SIZE*2]; //Store MQTT messages of Parameters
@@ -16,8 +17,6 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern char g_rx1_char;
 extern uint8_t g_debugEnable;
-extern rtc_time g_time;
-
 extern uint32_t g_NbSector;
 extern uint8_t g_forcesend;
 extern uint8_t cntTimeRev1;
@@ -30,6 +29,10 @@ extern SD_HandleTypeDef hsd;
 extern uint8_t flag_readSD;
 
 
+// Dành cho adjust time hallet to utc
+Time utc_time={0};
+uint8_t flag_sync_time = 0;
+extern Time adjust_time;
 // Dành cho ota
 #define FLASH_ADDR_FIRMWARE_UPDATE_INFO 0x0803F000
 #define FLASH_ADDR_FIRMWARE_UPDATE_DOWNLOAD 0x8023000
@@ -100,6 +103,7 @@ void Handle_OTA_Chunk(uint8_t *chunk, uint16_t len)
 void EspComm_init()
 {
 	HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,1);
+	SyncTime();
 }
 
 void debugPrint(const char *fmt, ...)
@@ -136,20 +140,17 @@ void mqtt_saved_data_send(char* data)
 }
 void SyncTime()
 {
-	if(g_time.year<2024)
-	{
 		char sync[10];
 		memset(sync,0,sizeof(sync));
 		sprintf(sync,"c:sync");
 		mqtt_debug_send(sync);
-	}
 }
 void info()
 {
 	g_debugEnable =1;
 	debugPrint("M[%d] STM32 FW = %d ",HAL_GetTick()/1000, FW_VER);
 	debugPrint("M[%d] HW Version = %d ",HAL_GetTick()/1000, HW_VER);
-	debugPrint("M[%d] Time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec);
+	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
 //	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 //	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
@@ -219,17 +220,26 @@ void GeneralCmd()
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:do1:",6)==0)
 		{
+			if (flag_sync_time==1) {
+					             	adjust_time = utc_time;
+					             }
 			if(strcmp(g_rx1_buffer+i+6,"0")==0)
 			{
 				HAL_GPIO_WritePin(DO1_GPIO_Port,DO1_Pin, 0);
 				debugPrint("M[%d] DO1 OFF ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else if(strcmp(g_rx1_buffer+i+6,"1")==0)
 			{
 				HAL_GPIO_WritePin(DO1_GPIO_Port,DO1_Pin, 1);
 				debugPrint("M[%d] DO1 ON ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else
 			{
@@ -238,17 +248,26 @@ void GeneralCmd()
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:do2:",6)==0)
 		{
+			if (flag_sync_time==1) {
+					             	adjust_time = utc_time;
+					             }
 			if(strcmp(g_rx1_buffer+i+6,"0")==0)
 			{
 				HAL_GPIO_WritePin(DO2_GPIO_Port,DO2_Pin, 0);
 				debugPrint("M[%d] DO2 OFF ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else if(strcmp(g_rx1_buffer+i+6,"1")==0)
 			{
 				HAL_GPIO_WritePin(DO2_GPIO_Port,DO2_Pin, 1);
 				debugPrint("M[%d] DO2 ON ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else
 			{
@@ -257,32 +276,50 @@ void GeneralCmd()
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:do3:",6)==0)
 		{
+			if (flag_sync_time==1) {
+					             	adjust_time = utc_time;
+					             }
 			if(strcmp(g_rx1_buffer+i+6,"0")==0)
 			{
 				HAL_GPIO_WritePin(DO3_GPIO_Port,DO3_Pin, 0);
 				debugPrint("M[%d] DO3 OFF ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else if(strcmp(g_rx1_buffer+i+6,"1")==0)
 			{
 				HAL_GPIO_WritePin(DO3_GPIO_Port,DO3_Pin, 1);
 				debugPrint("M[%d] DO3 ON ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:do4:",6)==0)
 		{
+			if (flag_sync_time==1) {
+					             	adjust_time = utc_time;
+					             }
 			if(strcmp(g_rx1_buffer+i+6,"0")==0)
 			{
 				HAL_GPIO_WritePin(DO4_GPIO_Port,DO4_Pin, 0);
 				debugPrint("M[%d] DO4 OFF ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 			else if(strcmp(g_rx1_buffer+i+6,"1")==0)
 			{
 				HAL_GPIO_WritePin(DO4_GPIO_Port,DO4_Pin, 1);
 				debugPrint("M[%d] DO4 ON ",HAL_GetTick()/1000);
 				g_forcesend=1;
+				uint8_t data_force_send[50];
+				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				mqtt_data_send((char *)data_force_send);
 			}
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:time:",7)==0)
@@ -309,14 +346,17 @@ void GeneralCmd()
 			memcpy(tmp,g_rx1_buffer+i+19,2);
 			sec = atoi(tmp);
 
-			g_time.year = yr;
-			g_time.month = month;
-			g_time.date = date;
-			g_time.hour = hr;
-			g_time.min = min;
-			g_time.sec = sec;
-			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec);
+			utc_time.year = yr;
+			utc_time.month = month;
+			utc_time.day = date;
+			utc_time.hour = hr;
+			utc_time.minute = min;
+			utc_time.second = sec;
+			g_debugEnable=1;
+			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
+			g_debugEnable=0;
 			g_forcesend=1;
+			flag_sync_time=1;
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:MqttPublished",15)==0)
 		{
@@ -336,7 +376,7 @@ void GeneralCmd()
 			g_forcesend =1;
 			debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
 			uint8_t data_force_send[50];
-			sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tdi1:%01d\tdi2:%01d\tdi3:%01d\tdi4:%01d\t",g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
+			  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
 			mqtt_data_send((char *)data_force_send);
 		}
 //		else if(strncmp(g_rx1_buffer+i,"c:appinit:",10)==0)
@@ -364,6 +404,13 @@ void GeneralCmd()
 			}
 
 		}
+		else if(strncmp(g_rx1_buffer+i,"c:usbrst",8)==0)
+				{
+				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+			    HAL_Delay(500);
+			    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+			    mqtt_debug_send("USB refresh\n");
+				}
 		else if(strncmp(g_rx1_buffer+i,"[IN_CHECK,1",11)==0)
 		{
 			g_debugEnable = 1;

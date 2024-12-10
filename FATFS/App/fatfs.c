@@ -28,7 +28,8 @@ FATFS USERFatFS;    /* File system object for USER logical drive */
 FIL USERFile;       /* File object for USER */
 
 /* USER CODE BEGIN Variables */
-extern rtc_time g_time;
+#include "time.h"
+extern Time hallet_time;
 /* USER CODE END Variables */
 
 void MX_FATFS_Init(void)
@@ -51,7 +52,7 @@ void MX_FATFS_Init(void)
 DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
-	convert_to_fattime(g_time.year, g_time.month,g_time.date, g_time.hour,g_time.min, g_time.sec);
+	convert_to_fattime(hallet_time.year, hallet_time.month,hallet_time.day, hallet_time.hour,hallet_time.minute, hallet_time.second);
 //  return 0;
   /* USER CODE END get_fattime */
 }

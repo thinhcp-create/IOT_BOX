@@ -28,6 +28,7 @@
 #include "espcomm.h"
 #include "usbd_core.h"
 #include "FLASH_PAGE_F1.h"
+#include "time.h"
 
 #define ADDR_APP_PROGRAM 0x08008000
 #define CRC32_POLYNOMIAL 0x04C11DB7
@@ -37,16 +38,26 @@ extern uint8_t buffer[];
 uint8_t flag_readSD=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
-rtc_time g_time=
+Time hallet_time=
 		{
-				.year=2024,
+				.year=2014,
 				.month=11,
-				.date = 25,
+				.day = 25,
 				.hour = 16,
-				.min = 47,
-				.sec = 30
+				.minute = 47,
+				.second = 30
 		};
-
+TimeDifference time_diff={0};
+Time adjust_time={
+		.year=2014,
+		.month=11,
+		.day = 25,
+		.hour = 16,
+		.minute = 47,
+		.second = 30
+};
+extern Time utc_time;
+extern uint8_t flag_sync_time;
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
@@ -153,6 +164,7 @@ uint32_t calculate_crc32(const void *data, size_t length) {
 
     return crc ^ 0xFFFFFFFF; // XOR với 0xFFFFFFFF để lấy kết quả cuối
 }
+extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE END 0 */
 
 /**
@@ -196,9 +208,7 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   EspComm_init();
-//  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-//  HAL_Delay(1000);
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+
   if(BSP_SD_Init()==MSD_OK)
   {
 	 mqtt_debug_send("SD card available\n");
@@ -208,6 +218,14 @@ int main(void)
 	 mqtt_debug_send("SD card not available\n");
   }
   RAM_FATFS_Init();
+// Để hallet nhận diện lại mạch là usb vì lúc boot mạch đã nhận diện được mạch ko là usb và sẽ ko refresh
+  HAL_PCD_MspDeInit(&hUsbDeviceFS);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+  HAL_Delay(500);
+  MX_USB_DEVICE_Init();
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+  HAL_Delay(500);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -241,8 +259,11 @@ int main(void)
 		  g_debugEnable=1;
 		  debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
 		  g_debugEnable=0;
+		  if (flag_sync_time==1) {
+		             	adjust_time = utc_time;
+		             }
 		  uint8_t data_force_send[50];
-		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tdi1:%01d\tdi2:%01d\tdi3:%01d\tdi4:%01d\t",g_time.year,g_time.month,g_time.date,g_time.hour,g_time.min,g_time.sec,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
+		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
 		  mqtt_data_send((char *)data_force_send);
 	  }
 
@@ -569,7 +590,7 @@ void format_data(char *data, char *final_string) {
     strcat(time_value, token);  // 15
 
     // Thêm giá trị "Time" vào chuỗi kết quả
-    snprintf(final_string, 1024, "%s\t", time_value);  // 20240919150915
+    snprintf(final_string, 1024, "%04d%02d%02d%02d%02d%02d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);  // 20240919150915
 
     // Bước 2: Gán các giá trị còn lại và nối vào chuỗi kết quả
     index = 1;  // Bắt đầu từ TreatSt
@@ -591,7 +612,7 @@ void format_data(char *data, char *final_string) {
     		{
     		strcat(final_string,alarm_labels[i]);
     		strcat(final_string,":");
-    	    strcat(final_string,getBitAsString(getValue(final_string,"ALARM"),i));
+    	    strcat(final_string,getBitAsString(getValue(final_string,"AL"),i));
     	    strcat(final_string, "\t");
     		};
     	}
@@ -603,14 +624,14 @@ void format_data(char *data, char *final_string) {
         		{
         		strcat(final_string,warn_labels[i]);
         		strcat(final_string,":");
-        	    strcat(final_string,getBitAsString(getValue(final_string,"WARN"),i));
+        	    strcat(final_string,getBitAsString(getValue(final_string,"WN"),i));
         	    strcat(final_string, "\t");
         		};
         	}
         }
     final_string[strlen(final_string)-1]= '\t';
 }
-void parse_date(const char *date_str, rtc_time *time) {
+void parse_date(const char *date_str, Time *time) {
     char year_str[5] = {0};   // Chuỗi năm (4 ký tự + null-terminator)
     char month_str[3] = {0};  // Chuỗi tháng (2 ký tự + null-terminator)
     char day_str[3] = {0};    // Chuỗi ngày (2 ký tự + null-terminator)
@@ -623,7 +644,7 @@ void parse_date(const char *date_str, rtc_time *time) {
     // Chuyển đổi chuỗi thành số và lưu vào cấu trúc rtc_time
     time->year = (uint16_t)atoi(year_str);
     time->month = (uint8_t)atoi(month_str);
-    time->date = (uint8_t)atoi(day_str);
+    time->day = (uint8_t)atoi(day_str);
 }
 char extracted_csv[20] = {0};
 void process_data(char *data,const char *filename)
@@ -645,17 +666,24 @@ void process_data(char *data,const char *filename)
 
         // �?ịnh dạng lại thành "15,01,15"
         snprintf(formatted_time, sizeof(formatted_time), "%02d,%02d,%02d", hours, minutes, seconds);
-        g_time.hour= hours;
-        g_time.min= minutes;
-        g_time.sec= seconds;
+        hallet_time.hour= hours;
+        hallet_time.minute= minutes;
+        hallet_time.second= seconds;
         // B�? qua phần th�?i gian trong chuỗi để lấy phần dữ liệu tiếp theo
         char *data_start = strchr(time_start, ',');
         if (data_start != NULL && *(data_start+1) != '\0' && *(data_start+1) != '\n') {
             data_start += 1;  // B�? qua dấu phẩy đầu tiên
             // Bước 3: Kết hợp chuỗi đã xử lý với phần dữ liệu còn lại
             snprintf(final_data, sizeof(final_data), "%s,%s,%s", extracted_csv, formatted_time, data_start);
-            parse_date(extracted_csv,&g_time);
+            parse_date(extracted_csv,&hallet_time);
             memset(format_string,0,1024);
+            if (flag_sync_time==1) {
+            	        flag_sync_time = 2;
+            	        time_diff = calculate_time_difference(hallet_time, utc_time);
+            }
+            if (flag_sync_time==2) {
+            	adjust_time = add_time_difference(hallet_time, time_diff);
+            }
             format_data(final_data,format_string);
             // In ra kết quả cuối cùng
             mqtt_data_send((char *)format_string);
@@ -726,9 +754,9 @@ void ReadFirstLineFromFile(const char* filename)
     memset(ramtoSD,0,sizeof(ramtoSD));
     memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
     create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    HAL_Delay(1000);
-    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+    HAL_Delay(500);
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 }
 
 

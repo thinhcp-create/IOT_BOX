@@ -59,15 +59,6 @@ extern "C" {
 
 
 
-typedef struct {
-	uint8_t sec;
-	uint8_t min;
-	uint8_t hour;
-//	uint8_t dow;
-	uint8_t date;
-	uint8_t month;
-	uint16_t year;
-} rtc_time;
 
 /* USER CODE END Includes */
 
