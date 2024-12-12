@@ -56,7 +56,7 @@ extern "C" {
 #define MAX_BUFFER_UART5 128
 #define MMC_SECTOR_SIZE 512
 #define MODBUS_NB_CONFIG 21
-
+#define TYPE 11
 
 
 

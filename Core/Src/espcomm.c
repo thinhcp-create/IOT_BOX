@@ -10,7 +10,8 @@
 #include "time.h"
 
 char SendDebugtoMqtt[MQTT_BUFF_SIZE];
-char SendParameterstoMqtt[MQTT_BUFF_SIZE*2]; //Store MQTT messages of Parameters
+char SendParameterstoMqtt[MQTT_BUFF_SIZE*3]; //Store MQTT messages of Parameters
+
 volatile uint8_t g_ota=0;
 uint32_t crc32_firmwave=0;
 extern UART_HandleTypeDef huart1;
@@ -122,6 +123,9 @@ void debugPrint(const char *fmt, ...)
 }
 void mqtt_data_send(char* data)
 {
+	char info[256]={0};
+	sprintf(info,"%s:%ld\t%s:%d\t%s:%d\t%s:%d\t","MCUU",HAL_GetTick()/1000,"TYPE",TYPE,"MFW",FW_VER,"HW",HW_VER);
+	strcat(data,info);
 	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
 	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
 	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
@@ -294,7 +298,7 @@ void GeneralCmd()
 				debugPrint("M[%d] DO3 ON ",HAL_GetTick()/1000);
 				g_forcesend=1;
 				uint8_t data_force_send[50];
-				  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+				sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
 				mqtt_data_send((char *)data_force_send);
 			}
 		}
