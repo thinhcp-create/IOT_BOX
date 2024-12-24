@@ -12,7 +12,7 @@ void EspCmdHandler();
 void EspOtaHandler();
 void mqtt_data_send(char* data);
 void FullSystemReset(void);
-//void mqtt_debug_send(char* data);
+void mqtt_debug_send(char* data);
 //void mqtt_saved_data_send(char* data);
 //void UART5_SetBaud(uint32_t baud);
 #endif /* APPS_ESPCOMM_ESPCOMM_H_ */

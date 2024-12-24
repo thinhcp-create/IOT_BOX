@@ -219,32 +219,22 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  if (flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0) )
-//	  	  {
-////	  		  FS_FileOperations();
-////	  	  	  flag_handle_csv =0;
-//	  	  }
-	  if(HAL_GetTick()-time_wdi >WDI_PERIOD)
-	  	  {
-	  		  time_wdi= HAL_GetTick();
-	  		  HAL_GPIO_TogglePin(WDI_GPIO_Port,WDI_Pin);
-	  	  }
-//	  if (flag_readSD ==1 &&(g_ota==0||Timer_frame_ota == 0) )
-//	  	  	  {
-//	  	  		  SD_FileOperations();
-//	  	  		  flag_readSD =0;
-//	  	  	  }
-	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
-	  		{
-	  			EspCmdHandler();
-	  			g_espcomm_tick = HAL_GetTick();
-	  		}
-	  if(HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD)
-	  		{
-	  			Device_Handler();
-	  			g_device_tick = HAL_GetTick();
-	  		}
 
+	  if(HAL_GetTick()-time_wdi >WDI_PERIOD)
+	  {
+		  time_wdi= HAL_GetTick();
+		  HAL_GPIO_TogglePin(WDI_GPIO_Port,WDI_Pin);
+	  }
+	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
+	  {
+		  EspCmdHandler();
+		  g_espcomm_tick = HAL_GetTick();
+	  }
+	  if(HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD)
+	  {
+		  Device_Handler();
+		  g_device_tick = HAL_GetTick();
+	  }
 //	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD&&(g_ota==0||Timer_frame_ota == 0))
 //	  {
 //		  time_force_send = HAL_GetTick();
