@@ -22,6 +22,7 @@ uint8_t g_paramupdate=0;
 float g_24V;
 float g_4V2;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
+uint8_t flag_handle_csv_done=0;
 
 extern uint8_t buffer[];
 extern Time hallet_time,utc_time,adjust_time;
@@ -30,8 +31,41 @@ extern uint8_t flag_handle_csv;
 extern uint8_t g_ota;
 extern uint8_t Timer_frame_ota;
 
+const char *params[] = {
+        "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
+        "ST", "WAT", "LT", "AL", "WN", "OT", "24V", "IT", "FUV", "FCB",
+        "H1", "H2", "SS", "PS", "UVF", "WPS", "PV", "ICB", "ICT",
+        "ICE", "ICG", "ICC", "IOG"
+    };
+    const char *alarms[] ={
+    		  "ALL",
+    		  "AIE",
+    		  "AD",
+    		  "ALS",
+    		  "Not_Used_0"	,
+    		  "APH",
+    		  "AS",
+    		  "ALP",
+    		  "AA",
+    		  "AUS",
+    		  "AW"
+    };
+    const char *warns[] = {
+          "WE",              // Warning 1
+          "Not_Used_1",        //         2 --- Not Used
+          "WW",             //         3
+          "WH",        //         4
+          "WL",             //         5
+          "WWS",             //         6
+          "WUS",                //         7
+          "Not_Used_2",     //         8 --- Not Used
+          "WS",            //         9
+          "WT"
+    };
 void FS_FileOperations()
 {
+	flag_handle_csv=0;
+	flag_handle_csv_done=0;
 	DIR dir;
 	FILINFO fno;
 	FRESULT res;
@@ -85,37 +119,37 @@ void ReadFirstLineFromFile(const char* filename)
 		{
 			res = f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
 			f_close(&USERFile);
-		}
-		if(res != FR_OK) return;
-		res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-		SD_FATFS_Init();
-		res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
-		if(res == FR_OK)
-		{
-			res = f_stat(filename, &fno);
-			second_line = &ramtoSD[0];
-			if (res == FR_OK)
+			res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+			SD_FATFS_Init();
+			res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
+			if(res == FR_OK)
 			{
-				uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
-				if (newline_pos != NULL)
+				res = f_stat(filename, &fno);
+				second_line = &ramtoSD[0];
+				if (res == FR_OK)
 				{
-					*newline_pos = '\0';
-					second_line = newline_pos + 2;
+					uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
+					if (newline_pos != NULL)
+					{
+						*newline_pos = '\0';
+						second_line = newline_pos + 2;
+					}
+					res = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+				}else  res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+				f_lseek(&SDFile, f_size(&SDFile));
+				res = FR_DISK_ERR;
+				mqtt_debug_send((char *)second_line);
+				res = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
+				if (res == FR_OK)
+				{
+					mqtt_debug_send("Write data to SD successed\n");
 				}
-				res = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-			}else  res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
-			f_lseek(&SDFile, f_size(&SDFile));
-			res = FR_DISK_ERR;
-			mqtt_debug_send((char *)second_line);
-			res = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
-			if (res == FR_OK)
-			{
-				mqtt_debug_send("Write data to SD successed\n");
+				f_close(&SDFile);
+				f_mount(NULL, (TCHAR const*)SDPath, 1);
+				RAM_FATFS_Init();
 			}
-			f_close(&SDFile);
-			f_mount(NULL, (TCHAR const*)SDPath, 1);
-			RAM_FATFS_Init();
 		}
+
 
     } else {
     	debugPrint("Could not open file in RAM\n");
@@ -127,11 +161,11 @@ void ReadFirstLineFromFile(const char* filename)
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
     HAL_Delay(500);
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
-    flag_handle_csv=0;
+
 }
 
 void ParseData(const char* input, char* filename,uint16_t * Value) {
-	if (sscanf(filename, "%04d%02d%02d", &hallet_time.year, &hallet_time.month, &hallet_time.day)!=3)
+	if (sscanf(filename, "%04d%02d%02d.CSV", &hallet_time.year, &hallet_time.month, &hallet_time.day)!=3)
 		return;
     char buffer[256];  // Tạo bản sao của chuỗi đầu vào
     strncpy(buffer, input, sizeof(buffer));
@@ -152,6 +186,7 @@ void ParseData(const char* input, char* filename,uint16_t * Value) {
         index++;
         token = strtok(NULL, ","); // Lấy token tiếp theo
     }
+    flag_handle_csv_done = 1;
 }
 
 void Device_Handler()
@@ -165,13 +200,99 @@ Hallet_Program()
 	if((HAL_GetTick()-g_alive_tick) > KEEP_ALIVE_PERIOD)
 		{
 			g_alive_tick = HAL_GetTick();
-//			Hallet_RegsToParam(0);
+			Hallet_RegsToParam(0);
 		}
 	if(flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0))
 		{
 			memset(DeviceRegs,0,sizeof(DeviceRegs));
 			FS_FileOperations();
-//			Hallet_RegsToParam(1);
+			Hallet_RegsToParam(flag_handle_csv_done);
 
 		}
+}
+
+uint8_t getBit(unsigned int value, int index) {
+    // Kiểm tra bit tại vị trí index và trả v�? chuỗi tương ứng
+    return ((value >> index) & 1) ? 1 : 0;
+}
+
+void Hallet_RegsToParam(uint8_t sts)
+{
+	g_qpos=0;
+	upload_pnt=0;
+	flag_handle_csv_done = 0;
+	uint16_t alarm=0,warn=0;
+	if(sts)
+	{
+		for(uint8_t i=0; i<sizeof(params)/sizeof(params[0]); i++)
+		{
+			sprintf(g_param_queue[i].code,"%s",params[i]);
+			sprintf(g_param_queue[i].value,"%d",DeviceRegs[i]);
+			if (strcmp(params[i],"AL")==0) alarm = DeviceRegs[i];
+			if (strcmp(params[i],"WN")==0) warn = DeviceRegs[i];
+			g_qpos++;
+		}
+		for(uint8_t i=0; i<sizeof(alarms)/sizeof(alarms[0]); i++)
+		{
+			if(strcmp(alarms[i],"Not_Used_0")!=0)
+			{
+				sprintf(g_param_queue[g_qpos].code,"%s",alarms[i]);
+				sprintf(g_param_queue[g_qpos].value,"%d",getBit(alarm, i));
+				g_qpos++;
+			}
+
+		}
+		for(uint8_t i=0; i<sizeof(warns)/sizeof(warns[0]); i++)
+		{
+			if(strcmp(warns[i],"Not_Used_1")!=0 && strcmp(warns[i],"Not_Used_2")!=0 )
+			{
+				sprintf(g_param_queue[g_qpos].code,"%s",warns[i]);
+				sprintf(g_param_queue[g_qpos].value,"%d",getBit(warn, i));
+				g_qpos++;
+			}
+
+		}
+
+
+	}
+	sprintf(g_param_queue[g_qpos].code,"DI1");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DI2");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DI3");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DI4");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DO1");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DO2");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DO3");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"DO4");
+	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"MCUU");
+	sprintf(g_param_queue[g_qpos].value,"%d",(HAL_GetTick()/1000));
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"TYPE");
+	sprintf(g_param_queue[g_qpos].value,"%d",TYPE);
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"MFW");
+	sprintf(g_param_queue[g_qpos].value,"%d",FW_VER);
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"HW");
+	sprintf(g_param_queue[g_qpos].value,"%d",HW_VER);
+//	g_qpos++;
+//	sprintf(g_param_queue[g_qpos].code,"UPR");
+//	sprintf(g_param_queue[g_qpos].value,"%d",g_uprate);
+
+	g_paramupdate=1;
 }
