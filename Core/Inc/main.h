@@ -58,8 +58,19 @@ extern "C" {
 #define MODBUS_NB_CONFIG 21
 #define TYPE 11
 
+#define IFLASH_ADD_PNT_FRONT 0x0803E000
+typedef struct {
+	int32_t pnt_front;
+	int32_t pnt_rear;
+//	int32_t addr_begin;
+//	int32_t addr_end;
+}LIFO_inst;
 
-
+typedef struct
+{
+	char code[5];
+	char value[10];
+} param_value;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

@@ -29,6 +29,7 @@
 #include "usbd_core.h"
 #include "FLASH_PAGE_F1.h"
 #include "time.h"
+#include "devicetype.h"
 
 #define ADDR_APP_PROGRAM 0x08008000
 #define CRC32_POLYNOMIAL 0x04C11DB7
@@ -38,30 +39,16 @@ extern uint8_t buffer[];
 uint8_t flag_readSD=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
-Time hallet_time=
-		{
-				.year=2014,
-				.month=11,
-				.day = 25,
-				.hour = 16,
-				.minute = 47,
-				.second = 30
-		};
+Time hallet_time={0};
 TimeDifference time_diff={0};
-Time adjust_time={
-		.year=2014,
-		.month=11,
-		.day = 25,
-		.hour = 16,
-		.minute = 47,
-		.second = 30
-};
+Time adjust_time={0};
 extern Time utc_time;
 extern uint8_t flag_sync_time;
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
+uint32_t g_device_tick=0;
 uint32_t time_force_send=0;
 uint32_t time_wdi=0;
 
@@ -232,40 +219,45 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0) )
-	  	  {
-	  		  FS_FileOperations();
-	  	  	  flag_handle_csv =0;
-	  	  }
+//	  if (flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0) )
+//	  	  {
+////	  		  FS_FileOperations();
+////	  	  	  flag_handle_csv =0;
+//	  	  }
 	  if(HAL_GetTick()-time_wdi >WDI_PERIOD)
 	  	  {
 	  		  time_wdi= HAL_GetTick();
 	  		  HAL_GPIO_TogglePin(WDI_GPIO_Port,WDI_Pin);
 	  	  }
-	  if (flag_readSD ==1 &&(g_ota==0||Timer_frame_ota == 0) )
-	  	  	  {
-	  	  		  SD_FileOperations();
-	  	  		  flag_readSD =0;
-	  	  	  }
+//	  if (flag_readSD ==1 &&(g_ota==0||Timer_frame_ota == 0) )
+//	  	  	  {
+//	  	  		  SD_FileOperations();
+//	  	  		  flag_readSD =0;
+//	  	  	  }
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
 	  		{
 	  			EspCmdHandler();
 	  			g_espcomm_tick = HAL_GetTick();
 	  		}
+	  if(HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD)
+	  		{
+	  			Device_Handler();
+	  			g_device_tick = HAL_GetTick();
+	  		}
 
-	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD&&(g_ota==0||Timer_frame_ota == 0))
-	  {
-		  time_force_send = HAL_GetTick();
-		  g_debugEnable=1;
-		  debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
-		  g_debugEnable=0;
-		  if (flag_sync_time==1) {
-		             	adjust_time = utc_time;
-		             }
-		  uint8_t data_force_send[50];
-		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
-		  mqtt_data_send((char *)data_force_send);
-	  }
+//	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD&&(g_ota==0||Timer_frame_ota == 0))
+//	  {
+//		  time_force_send = HAL_GetTick();
+//		  g_debugEnable=1;
+//		  debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
+//		  g_debugEnable=0;
+//		  if (flag_sync_time==1) {
+//		             	adjust_time = utc_time;
+//		             }
+//		  uint8_t data_force_send[50];
+//		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
+//		  mqtt_data_send((char *)data_force_send);
+//	  }
 
     /* USER CODE END WHILE */
 
@@ -695,156 +687,156 @@ void process_data(char *data,const char *filename)
 
 
 
-FRESULT res;
-char lineBuffer[256];
- uint8_t ramtoSD[1000];
- UINT br=0,bw=0;
+//FRESULT res;
+//char lineBuffer[256];
+// uint8_t ramtoSD[1000];
+// UINT br=0,bw=0;
+//
+//uint8_t *second_line;
+//void ReadFirstLineFromFile(const char* filename)
+//{
+//	memset(lineBuffer,0,sizeof(lineBuffer));
+//	memset(ramtoSD,0,sizeof(ramtoSD));
+//    // M? file CSV c?n d?c
+//    res = f_open(&USERFile, filename, FA_READ);
+//    if (res == FR_OK) {
+//			while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL) {
+//				process_data(lineBuffer, filename);
+//
+//    }
+//
+//        f_close(&USERFile);
+//        res = f_open(&USERFile, filename, FA_READ);
+//        if (res == FR_OK) {
+//                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
+//                f_close(&USERFile);
+//        }
+//        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+//        SD_FATFS_Init();
+//        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
+//        if(fresult == FR_OK)
+//        {
+//        			fresult = f_stat(filename, &fno);
+//        	        second_line = &ramtoSD[0];
+//        	        if (fresult == FR_OK) {
+//        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
+//        	        	 if (newline_pos != NULL) {
+//        	        		 *newline_pos = '\0';
+//        	        		  second_line = newline_pos + 2;
+//        	        	 }
+//        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+//        	        }else  fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+//        	        f_lseek(&SDFile, f_size(&SDFile));
+//        	        fresult = FR_DISK_ERR;
+//        	        mqtt_debug_send((char *)second_line);
+//        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
+//        	        if (fresult == FR_OK)
+//        	        	{
+//        	        	mqtt_debug_send("Write data to SD successed\n");
+//        	        	}
+//        	        f_close(&SDFile);
+//        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
+//        	        RAM_FATFS_Init();
+//        }
+//
+//    } else {
+//    	debugPrint("Could not open file in RAM\n");
+//    }
+//    memset(lineBuffer,0,sizeof(lineBuffer));
+//    memset(ramtoSD,0,sizeof(ramtoSD));
+//    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
+//    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
+//    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+//    HAL_Delay(500);
+//    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+//}
 
- uint8_t *second_line;
-void ReadFirstLineFromFile(const char* filename)
-{
-	memset(lineBuffer,0,sizeof(lineBuffer));
-	memset(ramtoSD,0,sizeof(ramtoSD));
-    // M? file CSV c?n d?c
-    res = f_open(&USERFile, filename, FA_READ);
-    if (res == FR_OK) {
-			while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL) {
-				process_data(lineBuffer, filename);
-
-    }
-
-        f_close(&USERFile);
-        res = f_open(&USERFile, filename, FA_READ);
-        if (res == FR_OK) {
-                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
-                f_close(&USERFile);
-        }
-        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-        SD_FATFS_Init();
-        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
-        if(fresult == FR_OK)
-        {
-        			fresult = f_stat(filename, &fno);
-        	        second_line = &ramtoSD[0];
-        	        if (fresult == FR_OK) {
-        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
-        	        	 if (newline_pos != NULL) {
-        	        		 *newline_pos = '\0';
-        	        		  second_line = newline_pos + 2;
-        	        	 }
-        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-        	        }else  fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
-        	        f_lseek(&SDFile, f_size(&SDFile));
-        	        fresult = FR_DISK_ERR;
-        	        mqtt_debug_send((char *)second_line);
-        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
-        	        if (fresult == FR_OK)
-        	        	{
-        	        	mqtt_debug_send("Write data to SD successed\n");
-        	        	}
-        	        f_close(&SDFile);
-        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
-        	        RAM_FATFS_Init();
-        }
-
-    } else {
-    	debugPrint("Could not open file in RAM\n");
-    }
-    memset(lineBuffer,0,sizeof(lineBuffer));
-    memset(ramtoSD,0,sizeof(ramtoSD));
-    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
-    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-    HAL_Delay(500);
-    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
-}
 
 
+//FRESULT res;
+//void FS_FileOperations()
+//{
+////	send_debug("Debug FS_FileOperations\n");
+//  /* Register the file system object to the FatFs module */
+//	RAM_FATFS_Init();
+////	send_debug("Debug f_mount(&USERFatFS, (TCHAR const*)USERPath, 1)\n");
+//	res = f_mount(&USERFatFS, (TCHAR const*)USERPath, 1);
+//  if(res == FR_OK)
+//  {
+//          /* Open the text file object with read access */
+//					res = f_opendir(&dir, (TCHAR const*)USERPath);
+//					if (res == FR_OK) {
+////						send_debug("Debug while((fno.fattrib & AM_DIR) || fno.fname[0] != 0)\n");
+//						do {
+//											memset(fno.fname,0,sizeof(fno.fname));
+//											res = f_readdir(&dir, &fno);
+//
+//										// Ki?m tra n?u không còn file nào
+//										if (res != FR_OK || fno.fname[0] == 0) {
+////												debugPrint("Read end\n");
+//												break;
+//										}
+//
+//										// B? qua thu m?c
+//										if (fno.fattrib & AM_DIR) {
+////											debugPrint("Found folder\n");
+//										}
+//
+//										// Ki?m tra n?u file có ph?n m? r?ng .csv
+//										if (strstr(fno.fname, ".CSV") != NULL) {
+////											debugPrint("Found CSV file: ");
+////											debugPrint(fno.fname);
+////											debugPrint("\n");
+//												// �??c dòng d?u tiên t? file CSV
+//												ReadFirstLineFromFile(fno.fname);
+//										}
+//
+//									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
+//						res= f_closedir(&dir);
+//
+////						res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+//					}
+//  }
+//
+// //
+//
+//}
 
-FRESULT res;
-void FS_FileOperations()
-{
-//	send_debug("Debug FS_FileOperations\n");
-  /* Register the file system object to the FatFs module */
-	RAM_FATFS_Init();
-//	send_debug("Debug f_mount(&USERFatFS, (TCHAR const*)USERPath, 1)\n");
-	res = f_mount(&USERFatFS, (TCHAR const*)USERPath, 1);
-  if(res == FR_OK)
-  {
-          /* Open the text file object with read access */
-					res = f_opendir(&dir, (TCHAR const*)USERPath);
-					if (res == FR_OK) {
-//						send_debug("Debug while((fno.fattrib & AM_DIR) || fno.fname[0] != 0)\n");
-						do {
-											memset(fno.fname,0,sizeof(fno.fname));
-											res = f_readdir(&dir, &fno);
-
-										// Ki?m tra n?u không còn file nào
-										if (res != FR_OK || fno.fname[0] == 0) {
-//												debugPrint("Read end\n");
-												break;
-										}
-
-										// B? qua thu m?c
-										if (fno.fattrib & AM_DIR) {
-//											debugPrint("Found folder\n");
-										}
-
-										// Ki?m tra n?u file có ph?n m? r?ng .csv
-										if (strstr(fno.fname, ".CSV") != NULL) {
-//											debugPrint("Found CSV file: ");
-//											debugPrint(fno.fname);
-//											debugPrint("\n");
-												// �??c dòng d?u tiên t? file CSV
-												ReadFirstLineFromFile(fno.fname);
-										}
-
-									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
-						res= f_closedir(&dir);
-
-//						res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-					}
-  }
-
- //
-
-}
-
-void SD_FileOperations()
-{
-
-  /* Register the file system object to the FatFs module */
-	SD_FATFS_Init();
-	res = f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-  if(res == FR_OK)
-  {
-          /* Open the text file object with read access */
-					res = f_opendir(&dir, (TCHAR const*)SDPath);
-					if (res == FR_OK) {
-						do {
-											memset(fno.fname,0,sizeof(fno.fname));
-											res = f_readdir(&dir, &fno);
-
-										// Ki?m tra n?u không còn file nào
-										if (res != FR_OK || fno.fname[0] == 0) {
-												break;
-										}
-
-										// B? qua thu m?c
-										if (fno.fattrib & AM_DIR) {
-											mqtt_debug_send("Found folder\n");
-										}
-
-										// Ki?m tra n?u file có ph?n m? r?ng .csv
-										if (strstr(fno.fname, ".CSV") != NULL) {
-											mqtt_debug_send(fno.fname);
-										}
-
-									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
-						res= f_closedir(&dir);
-					}
-  }
-}
+//void SD_FileOperations()
+//{
+//
+//  /* Register the file system object to the FatFs module */
+//	SD_FATFS_Init();
+//	res = f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
+//  if(res == FR_OK)
+//  {
+//          /* Open the text file object with read access */
+//					res = f_opendir(&dir, (TCHAR const*)SDPath);
+//					if (res == FR_OK) {
+//						do {
+//											memset(fno.fname,0,sizeof(fno.fname));
+//											res = f_readdir(&dir, &fno);
+//
+//										// Ki?m tra n?u không còn file nào
+//										if (res != FR_OK || fno.fname[0] == 0) {
+//												break;
+//										}
+//
+//										// B? qua thu m?c
+//										if (fno.fattrib & AM_DIR) {
+//											mqtt_debug_send("Found folder\n");
+//										}
+//
+//										// Ki?m tra n?u file có ph?n m? r?ng .csv
+//										if (strstr(fno.fname, ".CSV") != NULL) {
+//											mqtt_debug_send(fno.fname);
+//										}
+//
+//									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
+//						res= f_closedir(&dir);
+//					}
+//  }
+//}
 
 /* USER CODE END 4 */
 
