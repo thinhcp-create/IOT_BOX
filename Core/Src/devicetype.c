@@ -29,8 +29,6 @@ extern Time hallet_time,utc_time,adjust_time;
 extern TimeDifference time_diff;
 extern uint8_t flag_sync_time;
 extern uint8_t flag_handle_csv;
-extern uint8_t g_ota;
-extern uint8_t Timer_frame_ota;
 extern uint8_t g_forcesend;
 extern uint8_t g_isMqttPublished;
 extern UART_HandleTypeDef huart1;
@@ -226,7 +224,7 @@ Hallet_Program()
 			Hallet_RegsToParam(0);
 		}
 	}
-	if(flag_handle_csv ==1 &&(g_ota==0||Timer_frame_ota == 0) || g_forcesend ==1)
+	if(flag_handle_csv ==1 || g_forcesend ==1)
 		{
 			memset(DeviceRegs,0,sizeof(DeviceRegs));
 			FS_FileOperations();
@@ -331,7 +329,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		char tmp[4];
 		uint32_t pos=0;
 		memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
-		if(flag_sync_time == 1)
+		if(flag_sync_time == 1 || flag_sync_time == 0 )
 		{
 			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
 		}
@@ -356,7 +354,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		if((g_forcesend==1)||flag_sync_time == 0)
 		{
 			g_forcesend =0;
-			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
+			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,pos+5,10);
 		}
 		else
 		{
@@ -369,7 +367,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 //				SaveData(&g_q,SendParameterstoMqtt);
 			}
 			g_isMqttPublished=0;
-			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
+			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),10);
 		}
 //		mqtt_debug_send(SendParameterstoMqtt);
 		if(upload_pnt> g_qpos) //finish process queue

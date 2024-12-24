@@ -104,7 +104,7 @@ void Handle_OTA_Chunk(uint8_t *chunk, uint16_t len)
 void EspComm_init()
 {
 	HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,1);
-	SyncTime();
+//	SyncTime();
 }
 
 void debugPrint(const char *fmt, ...)
@@ -123,12 +123,12 @@ void debugPrint(const char *fmt, ...)
 }
 void mqtt_data_send(char* data)
 {
-	char info[256]={0};
-	sprintf(info,"%s:%ld\t%s:%d\t%s:%d\t%s:%d\t","MCUU",HAL_GetTick()/1000,"TYPE",TYPE,"MFW",FW_VER,"HW",HW_VER);
-	strcat(data,info);
-	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
-	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
-	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
+//	char info[256]={0};
+//	sprintf(info,"%s:%ld\t%s:%d\t%s:%d\t%s:%d\t","MCUU",HAL_GetTick()/1000,"TYPE",TYPE,"MFW",FW_VER,"HW",HW_VER);
+//	strcat(data,info);
+//	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
+//	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
+//	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
 
 }
 void mqtt_debug_send(char* data)

@@ -230,7 +230,7 @@ int main(void)
 		  EspCmdHandler();
 		  g_espcomm_tick = HAL_GetTick();
 	  }
-	  if(HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD)
+	  if((HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD) && (g_ota==0||Timer_frame_ota == 0) )
 	  {
 		  Device_Handler();
 		  g_device_tick = HAL_GetTick();
