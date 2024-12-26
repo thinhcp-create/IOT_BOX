@@ -14,8 +14,10 @@
 
 extern uint32_t g_NbSector;
 extern SD_HandleTypeDef hsd;
+extern uint32_t SD_DATA_SECTOR_BEGIN ;
+extern uint32_t SD_DATA_SECTOR_END ;
 char tmp[MQTT_BUFF_SIZE];
-extern uint8_t countdb;
+
 
 uint8_t QueueIsEmpty(LIFO_inst *q)
 {
@@ -40,8 +42,6 @@ void SavePointer(LIFO_inst* q)
 void LoadPointer(LIFO_inst* q)
 {
 	Flash_Read_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,2);
-
-
 }
 void SaveData(LIFO_inst *q, char * data)
 {
@@ -85,7 +85,7 @@ void SaveData(LIFO_inst *q, char * data)
 			}
 		}
 //		USER_SPI_write(0, (uint8_t*)data, q->pnt_rear, 1);
-		HAL_SD_WriteBlocks(&hsd, (uint8_t*)data, q->pnt_rear,1, 100);
+		HAL_SD_WriteBlocks(&hsd, (uint8_t*)data, q->pnt_rear,1, 2000);
 //		memset(tmp,0,sizeof(tmp));
 //		USER_SPI_read(0, (uint8_t*)tmp, q->pnt_rear, 1);
 //		mqtt_debug_send(tmp);
@@ -107,7 +107,7 @@ void ReadData(LIFO_inst *q)
 		debugPrint("M[%d] Read Data - front = %d rear = %d",HAL_GetTick()/1000,q->pnt_front,q->pnt_rear);
 		debugPrint("M[%d] Last Data at Rear Pointer:",HAL_GetTick()/1000);
 		memset(tmp,0,sizeof(tmp));
-		HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,100);
+		if(BSP_SD_Init()==MSD_OK) HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,1000);
 		mqtt_debug_send(tmp);
 	}
 	else
@@ -125,7 +125,7 @@ void SendData(LIFO_inst *q, uint8_t nmb_send_element)
 			debugPrint("M[%d] Send Saved Data",HAL_GetTick()/1000);
 			for(uint8_t i =0;i<nmb_send_element;i++)
 			{
-				countdb++;
+
 				if(QueueIsEmpty(q))
 				{
 
@@ -136,9 +136,9 @@ void SendData(LIFO_inst *q, uint8_t nmb_send_element)
 					{
 						memset(tmp,0,sizeof(tmp));
 //						USER_SPI_read(0, (uint8_t*)tmp, q->pnt_rear, 1);
-						HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,100);
-//						mqtt_saved_data_send(tmp);
-						mqtt_debug_send((char *)tmp);
+						HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,1000);
+						mqtt_saved_data_send(tmp);
+//						mqtt_debug_send((char *)tmp);
 
 						q->pnt_rear -= 1;
 					}
@@ -146,9 +146,9 @@ void SendData(LIFO_inst *q, uint8_t nmb_send_element)
 					{
 						memset(tmp,0,sizeof(tmp));
 //						USER_SPI_read(0, (uint8_t*)tmp, q->pnt_rear, 1);
-						HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,100);
-//						mqtt_saved_data_send(tmp);
-						mqtt_debug_send(tmp);
+						HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,1000);
+						mqtt_saved_data_send(tmp);
+//						mqtt_debug_send(tmp);
 
 						q->pnt_front=0;
 
@@ -162,9 +162,9 @@ void SendData(LIFO_inst *q, uint8_t nmb_send_element)
 						{
 							memset(tmp,0,sizeof(tmp));
 //							USER_SPI_read(0, (uint8_t*)tmp, q->pnt_rear, 1);
-							HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,100);
-//							mqtt_saved_data_send(tmp);
-							mqtt_debug_send(tmp);
+							HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,1000);
+							mqtt_saved_data_send(tmp);
+//							mqtt_debug_send(tmp);
 
 							q->pnt_rear -= 1;
 						}
@@ -172,9 +172,9 @@ void SendData(LIFO_inst *q, uint8_t nmb_send_element)
 						{
 							memset(tmp,0,sizeof(tmp));
 //							USER_SPI_read(0, (uint8_t*)tmp, q->pnt_rear, 1);
-							HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,100);
-//							mqtt_saved_data_send(tmp);
-							mqtt_debug_send(tmp);
+							HAL_SD_ReadBlocks(&hsd, (uint8_t*)tmp, q->pnt_rear, 1,1000);
+							mqtt_saved_data_send(tmp);
+//							mqtt_debug_send(tmp);
 
 							q->pnt_rear = g_NbSector;
 						}

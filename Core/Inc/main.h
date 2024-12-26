@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
 #define FW_VER 1
 #define HW_VER 1 //remove flash chip, add SD card
 
@@ -51,7 +52,7 @@ extern "C" {
 #define MAX_QUEUE_DATA_MODBUS 145 //= DEVICE_REGISTERS_NUMBER*2+5
 #define DEVICE_REGISTERS_NUMBER 70
 #define PARAMETER_QUEUE_SIZE 150
-#define MQTT_BUFF_SIZE 256
+#define MQTT_BUFF_SIZE 256*2
 #define MAX_BUFFER_UART1 265
 #define MAX_BUFFER_UART5 128
 #define MMC_SECTOR_SIZE 512
@@ -59,6 +60,7 @@ extern "C" {
 #define TYPE 11
 
 #define IFLASH_ADD_PNT_FRONT 0x0803E000
+#define TIME_DIFFERENCE 0x0803E800
 typedef struct {
 	int32_t pnt_front;
 	int32_t pnt_rear;
@@ -71,6 +73,8 @@ typedef struct
 	char code[5];
 	char value[10];
 } param_value;
+
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

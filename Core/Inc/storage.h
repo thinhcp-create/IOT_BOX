@@ -10,8 +10,7 @@
 #include "stdlib.h"
 #include "main.h"
 
-#define SD_DATA_SECTOR_BEGIN 6291456
-#define SD_DATA_SECTOR_END 7782400
+
 
 void ReadData(LIFO_inst *q);
 void SendData(LIFO_inst *q, uint8_t nmb_send_element);

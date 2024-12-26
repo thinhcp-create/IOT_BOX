@@ -8,6 +8,7 @@
 #ifndef TIME_H_
 #define TIME_H_
 #include "stdint.h"
+#include "main.h"
 
 typedef struct {
 	uint16_t year;
@@ -29,6 +30,6 @@ typedef struct {
 
 TimeDifference calculate_time_difference(Time t1, Time t2);
 Time add_time_difference(Time base, TimeDifference diff);
-
+void load_time_difference(TimeDifference* diff);
 
 #endif /* INC_TIME_H_ */

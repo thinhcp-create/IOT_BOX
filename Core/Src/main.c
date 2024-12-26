@@ -39,9 +39,24 @@ extern uint8_t buffer[];
 uint8_t flag_readSD=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
-Time hallet_time={0};
+Time hallet_time={
+
+                .year=2014,
+                .month=11,
+                .day = 25,
+                .hour = 16,
+                .minute = 47,
+                .second = 30
+        };
 TimeDifference time_diff={0};
-Time adjust_time={0};
+Time adjust_time={
+                .year=2014,
+                .month=11,
+                .day = 25,
+                .hour = 16,
+                .minute = 47,
+                .second = 30
+        };
 extern Time utc_time;
 extern uint8_t flag_sync_time;
 uint32_t g_NbSector;
@@ -51,7 +66,9 @@ uint32_t g_espcomm_tick=0;
 uint32_t g_device_tick=0;
 uint32_t time_force_send=0;
 uint32_t time_wdi=0;
-
+LIFO_inst g_q;
+uint32_t SD_DATA_SECTOR_BEGIN =0;
+uint32_t SD_DATA_SECTOR_END =0;
 //Dành cho ota
 extern uint8_t g_ota;
 extern uint8_t Timer_frame_ota;
@@ -194,11 +211,17 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
+  LoadPointer(&g_q);
+  load_time_difference(&time_diff);
   EspComm_init();
 
   if(BSP_SD_Init()==MSD_OK)
   {
 	 mqtt_debug_send("SD card available\n");
+	 g_NbSector = hsd.SdCard.BlockNbr;
+	 SD_DATA_SECTOR_END = g_NbSector;
+	 SD_DATA_SECTOR_BEGIN = g_NbSector - 1024*1024;
+
   }
   else
   {
@@ -235,20 +258,6 @@ int main(void)
 		  Device_Handler();
 		  g_device_tick = HAL_GetTick();
 	  }
-//	  if(HAL_GetTick()-time_force_send >ESP_FORCESEND_PERIOD&&(g_ota==0||Timer_frame_ota == 0))
-//	  {
-//		  time_force_send = HAL_GetTick();
-//		  g_debugEnable=1;
-//		  debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
-//		  g_debugEnable=0;
-//		  if (flag_sync_time==1) {
-//		             	adjust_time = utc_time;
-//		             }
-//		  uint8_t data_force_send[50];
-//		  sprintf(data_force_send,"%04d%02d%02d%02d%02d%02d\tDI1:%01d\tDI2:%01d\tDI3:%01d\tDI4:%01d\tDO1:%01d\tDO2:%01d\tDO3:%01d\tDO4:%01d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second,HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin),HAL_GPIO_ReadPin(DI2_GPIO_Port, DI2_Pin),HAL_GPIO_ReadPin(DI3_GPIO_Port, DI3_Pin),HAL_GPIO_ReadPin(DI4_GPIO_Port, DI4_Pin),HAL_GPIO_ReadPin(DO1_GPIO_Port, DO1_Pin),HAL_GPIO_ReadPin(DO2_GPIO_Port, DO2_Pin),HAL_GPIO_ReadPin(DO3_GPIO_Port, DO3_Pin),HAL_GPIO_ReadPin(DO4_GPIO_Port, DO4_Pin));
-//		  mqtt_data_send((char *)data_force_send);
-//	  }
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

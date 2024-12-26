@@ -10,7 +10,7 @@
 #include "time.h"
 
 char SendDebugtoMqtt[MQTT_BUFF_SIZE];
-char SendParameterstoMqtt[MQTT_BUFF_SIZE*3]; //Store MQTT messages of Parameters
+char SendParameterstoMqtt[MQTT_BUFF_SIZE]; //Store MQTT messages of Parameters
 
 volatile uint8_t g_ota=0;
 uint32_t crc32_firmwave=0;
@@ -28,10 +28,19 @@ extern uint32_t calculate_crc32(const void *data, size_t length);
 extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
 extern uint8_t flag_readSD;
-
+extern LIFO_inst g_q;
 
 // Dành cho adjust time hallet to utc
-Time utc_time={0};
+Time utc_time={
+
+                .year=2014,
+                .month=11,
+                .day = 25,
+                .hour = 16,
+                .minute = 47,
+                .second = 30
+
+};
 uint8_t flag_sync_time = 0;
 extern Time adjust_time;
 // Dành cho ota
@@ -104,7 +113,7 @@ void Handle_OTA_Chunk(uint8_t *chunk, uint16_t len)
 void EspComm_init()
 {
 	HAL_UART_Receive_IT(&huart1,(uint8_t*)&g_rx1_char,1);
-//	SyncTime();
+	SyncTime();
 }
 
 void debugPrint(const char *fmt, ...)
@@ -118,7 +127,7 @@ void debugPrint(const char *fmt, ...)
 		vsprintf(buff, fmt, arg);
 		va_end(arg);
 		sprintf(buff2,"@>%03d%s ",strlen(buff),buff);
-		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),100);
+		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),1000);
 	 }
 }
 void mqtt_data_send(char* data)
@@ -135,12 +144,12 @@ void mqtt_debug_send(char* data)
 {
 	memset(SendDebugtoMqtt,0,sizeof(SendDebugtoMqtt));
 	sprintf(SendDebugtoMqtt,"@>%03d%s ",strlen(data),data);
-	HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),100);
+	HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),1000);
 }
 void mqtt_saved_data_send(char* data)
 {
 	data[5]='$';
-	HAL_UART_Transmit(&huart1,(uint8_t*)data,strlen(data),100);
+	HAL_UART_Transmit(&huart1,(uint8_t*)data,strlen(data),1000);
 }
 void SyncTime()
 {
@@ -155,7 +164,7 @@ void info()
 	debugPrint("M[%d] STM32 FW = %d ",HAL_GetTick()/1000, FW_VER);
 	debugPrint("M[%d] HW Version = %d ",HAL_GetTick()/1000, HW_VER);
 	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
-//	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
+	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 //	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
 //	TestFlash();

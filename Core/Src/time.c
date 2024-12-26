@@ -5,6 +5,16 @@
  *      Author: Salmon1611
  */
 #include "time.h"
+#include "FLASH_PAGE_F1.h"
+
+void save_time_difference(TimeDifference* diff)
+{
+	Flash_Write_Data(TIME_DIFFERENCE,(uint32_t *)diff,6);
+}
+void load_time_difference(TimeDifference* diff)
+{
+	Flash_Read_Data(TIME_DIFFERENCE,(uint32_t *)diff,6);
+}
 
 // Kiểm tra xem năm có phải là năm nhuận hay không
 uint8_t is_leap_year(uint16_t year) {
@@ -60,7 +70,7 @@ TimeDifference calculate_time_difference(Time t1, Time t2) {
     diff.months = t2.month - t1.month;
 
     diff.years = t2.year - t1.year;
-
+    save_time_difference(&diff);
     return diff;
 }
 

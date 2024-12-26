@@ -13,6 +13,7 @@
 #include "time.h"
 
 uint32_t g_alive_tick=0;
+uint32_t g_hallet_tick=0;
 uint16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
 uint16_t g_NbMessUp = 20;
 uint8_t g_regsupdate;
@@ -32,7 +33,9 @@ extern uint8_t flag_handle_csv;
 extern uint8_t g_forcesend;
 extern uint8_t g_isMqttPublished;
 extern UART_HandleTypeDef huart1;
-extern char SendParameterstoMqtt[MQTT_BUFF_SIZE*3];
+extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
+extern LIFO_inst g_q;
+
 const char *params[] = {
         "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
         "ST", "WAT", "LT", "AL", "WN", "OT", "24V", "IT", "FUV", "FCB",
@@ -140,7 +143,7 @@ void ReadFirstLineFromFile(const char* filename)
 				}else  res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
 				f_lseek(&SDFile, f_size(&SDFile));
 				res = FR_DISK_ERR;
-				mqtt_debug_send((char *)second_line);
+//				mqtt_debug_send((char *)second_line);
 				res = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
 				if (res == FR_OK)
 				{
@@ -180,10 +183,8 @@ void ParseData(const char* input, char* filename,uint16_t * Value) {
        flag_sync_time = 2;
        time_diff = calculate_time_difference(hallet_time, utc_time);
     }
-    if (flag_sync_time==2)
-    {
-       adjust_time = add_time_difference(hallet_time, time_diff);
-    }
+    adjust_time = add_time_difference(hallet_time, time_diff);
+
     // Bỏ qua phần "11:48:43" bằng cách tìm dấu phẩy đầu tiên
     char* dataStart = strchr(buffer, ',');
     if (dataStart == NULL)  return;
@@ -208,29 +209,34 @@ void Device_Handler()
 
 Hallet_Program()
 {
-	if( flag_sync_time == 0 )
+	if( flag_sync_time == 0 || (g_isMqttPublished == 0 && flag_sync_time != 2))
 	{
-		if((HAL_GetTick()-g_alive_tick) > ESP_FORCESEND_PERIOD)
+		if((HAL_GetTick()-g_alive_tick) > ESP_FORCESEND_PERIOD || g_forcesend == 1)
 		{
 			g_alive_tick = HAL_GetTick();
 			Hallet_RegsToParam(0);
 			g_forcesend = 1;
 		}
 	}
-	else {
-		if((HAL_GetTick()-g_alive_tick) > KEEP_ALIVE_PERIOD)
+	else
+	{
+		if((HAL_GetTick()-g_alive_tick) > KEEP_ALIVE_PERIOD || g_forcesend == 1)
 		{
 			g_alive_tick = HAL_GetTick();
 			Hallet_RegsToParam(0);
+			g_forcesend = 1;
 		}
 	}
-	if(flag_handle_csv ==1 || g_forcesend ==1)
+	if(flag_handle_csv ==1 && g_forcesend == 0 || HAL_GetTick()-g_hallet_tick>=90*1000)
+	{
+		g_hallet_tick = HAL_GetTick();
+		FS_FileOperations();
+		if (flag_handle_csv_done)
 		{
 			memset(DeviceRegs,0,sizeof(DeviceRegs));
-			FS_FileOperations();
 			Hallet_RegsToParam(flag_handle_csv_done);
-
 		}
+	}
 }
 
 uint8_t getBit(unsigned int value, int index) {
@@ -339,7 +345,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		}
 		pos = strlen(SendParameterstoMqtt);
 
-		while(pos<MQTT_BUFF_SIZE*3-15 && upload_pnt <= g_qpos)
+		while(pos<MQTT_BUFF_SIZE-15 && upload_pnt <= g_qpos)
 		{
 			sprintf(SendParameterstoMqtt+pos,"%s:%s\t",g_param_queue[upload_pnt].code,g_param_queue[upload_pnt].value);
 			pos = strlen(SendParameterstoMqtt);
@@ -351,23 +357,29 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		SendParameterstoMqtt[3] = tmp[1];
 		SendParameterstoMqtt[4] = tmp[2];
 
-		if((g_forcesend==1)||flag_sync_time == 0)
+		if(g_forcesend == 1 ||flag_sync_time == 0 || flag_sync_time == 1)
 		{
+			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 			g_forcesend =0;
-			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,pos+5,10);
 		}
 		else
 		{
 			if(g_isMqttPublished==1)
 			{
-//				SendData(&g_q,g_NbMessUp);
+				if(BSP_SD_Init()==MSD_OK)
+				{
+					SendData(&g_q,g_NbMessUp);
+				}
 			}
 			else
 			{
-//				SaveData(&g_q,SendParameterstoMqtt);
+				if(BSP_SD_Init()==MSD_OK)
+				{
+					SaveData(&g_q,SendParameterstoMqtt);
+				}
 			}
 			g_isMqttPublished=0;
-			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),10);
+			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 		}
 //		mqtt_debug_send(SendParameterstoMqtt);
 		if(upload_pnt> g_qpos) //finish process queue
