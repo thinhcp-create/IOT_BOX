@@ -69,6 +69,7 @@ uint32_t time_wdi=0;
 LIFO_inst g_q;
 uint32_t SD_DATA_SECTOR_BEGIN =0;
 uint32_t SD_DATA_SECTOR_END =0;
+DWORD fre_clust = 0,fre_sect=0;
 //Dành cho ota
 extern uint8_t g_ota;
 extern uint8_t Timer_frame_ota;

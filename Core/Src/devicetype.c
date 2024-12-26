@@ -35,6 +35,7 @@ extern uint8_t g_isMqttPublished;
 extern UART_HandleTypeDef huart1;
 extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
+extern DWORD fre_clust,fre_sect;
 
 const char *params[] = {
         "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
@@ -106,6 +107,7 @@ void ReadFirstLineFromFile(const char* filename)
 	UINT br=0,bw=0;
 	FILINFO fno;
 	uint8_t line=0;
+	DIR dir;
 	memset(lineBuffer,0,sizeof(lineBuffer));
 	memset(ramtoSD,0,sizeof(ramtoSD));
     // M? file CSV c?n d?c
@@ -129,6 +131,46 @@ void ReadFirstLineFromFile(const char* filename)
 			res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
 			if(res == FR_OK)
 			{
+				res = f_getfree((TCHAR const*)SDPath, &fre_clust, &SDFatFS);
+				if (res == FR_OK)
+				{
+					// Tính toán thông tin dung lượng
+//				    tot_sect = (SDFatFS.n_fatent - 2) * SDFatFS.csize;   // Tổng số sector
+				    fre_sect = fre_clust * SDFatFS.csize;          // Số sector còn trống
+				    // khi fre <= 200*100 thì xóa file cũ nhất
+				    if(fre_sect <= 200*100)
+				    {
+				    	res = f_opendir(&dir, (TCHAR const*)SDPath);
+				    	if (res == FR_OK)
+				    	{
+				    		char oldest_file[64] = {0};
+				    		DWORD oldest_time = 0xFFFFFFFF; // Giá trị lớn nhất để so sánh // Giá trị lớn nhất để so sánh
+				    		do
+				    		{
+				    			memset(fno.fname,0,sizeof(fno.fname));
+				    			res = f_readdir(&dir, &fno);
+				    			if (fno.fattrib & AM_DIR) {
+				    			continue;
+				  				}
+				    			if (res != FR_OK || fno.fname[0] == 0)	break;
+				    			if (fno.fdate < oldest_time)
+				    			{
+				    				oldest_time = fno.fdate;
+				    			    strcpy(oldest_file, fno.fname);
+				    			}
+
+				    		}	while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
+				    		res= f_closedir(&dir);
+				    	     // Xóa file cũ nhất
+				    	    if (strlen(oldest_file) > 0)
+				    	    {
+//				    	    	mqtt_debug_send(oldest_file);
+//				    	      printf("Deleting oldest file: %s\n", oldest_file);
+				    	      res = f_unlink(oldest_file);
+				    	    }
+				    	}
+				    }
+				}
 				res = f_stat(filename, &fno);
 				second_line = &ramtoSD[0];
 				if (res == FR_OK)
