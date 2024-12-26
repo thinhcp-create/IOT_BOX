@@ -269,13 +269,14 @@ Hallet_Program()
 			g_forcesend = 1;
 		}
 	}
-	if(flag_handle_csv ==1 && g_forcesend == 0 || HAL_GetTick()-g_hallet_tick>=90*1000)
+	if(flag_handle_csv ==1 && g_forcesend == 0 )
 	{
-		g_hallet_tick = HAL_GetTick();
+//		g_hallet_tick = HAL_GetTick();
+		memset(DeviceRegs,0,sizeof(DeviceRegs));
 		FS_FileOperations();
 		if (flag_handle_csv_done)
 		{
-			memset(DeviceRegs,0,sizeof(DeviceRegs));
+
 			Hallet_RegsToParam(flag_handle_csv_done);
 		}
 	}
