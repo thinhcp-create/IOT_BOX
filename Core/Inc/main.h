@@ -40,7 +40,7 @@ extern "C" {
 #define UPRATE_DEFAUT 30
 #define DEVICE_HANDLER_PERIOD 20 //ms
 #define KEEP_ALIVE_PERIOD 5*60*1000 //ms
-
+#define UTC_PERIOD 1000 //1s
 #define RECV_END_TIMEOUT 30 //ms
 #define ESP_COMM_PERIOD 1 //ms
 #define ESP_SYNC_PERIOD (30*1000) //ms

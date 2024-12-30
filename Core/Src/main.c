@@ -64,6 +64,7 @@ uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
 uint32_t g_device_tick=0;
+uint32_t g_utc_tick=0;
 uint32_t time_force_send=0;
 uint32_t time_wdi=0;
 LIFO_inst g_q;
@@ -214,6 +215,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
   LoadPointer(&g_q);
   load_time_difference(&time_diff);
+  const TimeDifference time_tick = {
+		  .days = 0,
+		  .hours = 0,
+		  .minutes = 0,
+		  .months = 0,
+		  .seconds = 1,
+		  .years = 0
+  };
   EspComm_init();
 
   if(BSP_SD_Init()==MSD_OK)
@@ -258,6 +267,11 @@ int main(void)
 	  {
 		  Device_Handler();
 		  g_device_tick = HAL_GetTick();
+	  }
+	  if((HAL_GetTick()-g_utc_tick>UTC_PERIOD) && (g_ota==0||Timer_frame_ota == 0) && flag_sync_time == 1)
+	  {
+		  g_utc_tick = HAL_GetTick();
+		  utc_time = add_time_difference(utc_time,time_tick);
 	  }
     /* USER CODE END WHILE */
 

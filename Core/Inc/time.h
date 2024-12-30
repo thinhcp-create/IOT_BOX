@@ -20,12 +20,12 @@ typedef struct {
 } Time;
 
 typedef struct {
-	uint16_t years;
-    uint8_t months;
-    uint8_t days;
-    uint8_t hours;
-    uint8_t minutes;
-    uint8_t seconds;
+	int16_t years;
+    int8_t months;
+    int8_t days;
+    int8_t hours;
+    int8_t minutes;
+    int8_t seconds;
 } TimeDifference;
 
 TimeDifference calculate_time_difference(Time t1, Time t2);
