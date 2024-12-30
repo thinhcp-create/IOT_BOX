@@ -27,7 +27,9 @@ uint8_t flag_handle_csv_done=0;
 
 extern uint8_t buffer[];
 extern Time hallet_time,utc_time,adjust_time;
-extern TimeDifference time_diff;
+extern RTC_TimeTypeDef sTime;
+extern RTC_DateTypeDef sDate;
+extern RTC_HandleTypeDef hrtc;
 extern uint8_t flag_sync_time;
 extern uint8_t flag_handle_csv;
 extern uint8_t g_forcesend;
@@ -134,6 +136,7 @@ void ReadFirstLineFromFile(const char* filename)
 				res = f_getfree((TCHAR const*)SDPath, &fre_clust, &SDFatFS);
 				if (res == FR_OK)
 				{
+
 					// Tính toán thông tin dung lượng
 //				    tot_sect = (SDFatFS.n_fatent - 2) * SDFatFS.csize;   // Tổng số sector
 				    fre_sect = fre_clust * SDFatFS.csize;          // Số sector còn trống
@@ -223,10 +226,7 @@ void ParseData(const char* input, char* filename,uint16_t * Value) {
     if (flag_sync_time==1)
     {
        flag_sync_time = 2;
-       time_diff = calculate_time_difference(hallet_time, utc_time);
     }
-    adjust_time = add_time_difference(hallet_time, time_diff);
-
     // Bỏ qua phần "11:48:43" bằng cách tìm dấu phẩy đầu tiên
     char* dataStart = strchr(buffer, ',');
     if (dataStart == NULL)  return;
@@ -251,7 +251,7 @@ void Device_Handler()
 
 Hallet_Program()
 {
-	if( flag_sync_time == 0 || (g_isMqttPublished == 0 && flag_sync_time != 2))
+	if( flag_sync_time == 0 || g_isMqttPublished == 0 && flag_sync_time !=2)
 	{
 		if((HAL_GetTick()-g_alive_tick) > ESP_FORCESEND_PERIOD || g_forcesend == 1)
 		{
@@ -377,15 +377,17 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 	{
 		char tmp[4];
 		uint32_t pos=0;
+		HAL_RTC_GetDate(&hrtc, &sDate,RTC_FORMAT_BIN);
+		HAL_RTC_GetTime(&hrtc, &sTime,RTC_FORMAT_BIN);
 		memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
-		if(flag_sync_time == 1 || flag_sync_time == 0 )
-		{
-			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
-		}
-		if(flag_sync_time == 2)
-		{
-			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
-		}
+//		if(flag_sync_time == 1 || flag_sync_time == 0 )
+//		{
+			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,sDate.Year+2000,sDate.Month,sDate.Date,sTime.Hours,sTime.Minutes,sTime.Seconds);
+//		}
+//		if(flag_sync_time == 2)
+//		{
+//			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
+//		}
 		pos = strlen(SendParameterstoMqtt);
 
 		while(pos<MQTT_BUFF_SIZE-15 && upload_pnt <= g_qpos)
@@ -400,7 +402,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		SendParameterstoMqtt[3] = tmp[1];
 		SendParameterstoMqtt[4] = tmp[2];
 
-		if(g_forcesend == 1 ||flag_sync_time == 0 || flag_sync_time == 1)
+		if(g_forcesend == 1 ||(flag_sync_time == 0 && flag_sync_time!=2))
 		{
 			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 			g_forcesend =0;

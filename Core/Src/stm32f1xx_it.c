@@ -29,6 +29,7 @@
 /* USER CODE BEGIN TD */
 volatile uint8_t Timer_frame_ota;
 volatile uint8_t Cnt = 0;
+
 void OTA_Timer_Handler(void)
 {
   if(Timer_frame_ota > 0)
@@ -83,7 +84,9 @@ void NMI_Handler(void)
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
    while (1)
   {
-
+	   HAL_NVIC_SystemReset();
+	   FullSystemReset();
+	   mqtt_debug_send("After NMI_Handler, should never be reached.\n");
   }
   /* USER CODE END NonMaskableInt_IRQn 1 */
 }
@@ -117,6 +120,9 @@ void MemManage_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
+	  HAL_NVIC_SystemReset();
+	  FullSystemReset();
+	  mqtt_debug_send("After MemManage_Handler, should never be reached.\n");
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
   }
 }
@@ -132,6 +138,9 @@ void BusFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
+	  HAL_NVIC_SystemReset();
+	  FullSystemReset();
+	  mqtt_debug_send("After BusFault_Handler, should never be reached.\n");
     /* USER CODE END W1_BusFault_IRQn 0 */
   }
 }
@@ -147,6 +156,9 @@ void UsageFault_Handler(void)
   while (1)
   {
     /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
+	  HAL_NVIC_SystemReset();
+	  FullSystemReset();
+	  mqtt_debug_send("After UsageFault_Handler, should never be reached.\n");
     /* USER CODE END W1_UsageFault_IRQn 0 */
   }
 }

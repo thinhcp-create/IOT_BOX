@@ -74,7 +74,14 @@ typedef struct
 	char value[10];
 } param_value;
 
-
+typedef struct {
+	uint16_t year;
+	uint8_t month;
+	uint8_t day;
+	uint8_t hour;
+	uint8_t minute;
+	uint8_t second;
+} Time;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -112,10 +119,6 @@ void Error_Handler(void);
 #define USB_PWR_EN_GPIO_Port GPIOA
 #define RS485_DE_Pin GPIO_PIN_1
 #define RS485_DE_GPIO_Port GPIOA
-#define RS485_TX_Pin GPIO_PIN_2
-#define RS485_TX_GPIO_Port GPIOA
-#define RS485_RX_Pin GPIO_PIN_3
-#define RS485_RX_GPIO_Port GPIOA
 #define RST_WIFI_Pin GPIO_PIN_4
 #define RST_WIFI_GPIO_Port GPIOA
 #define LED_Pin GPIO_PIN_0

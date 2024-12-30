@@ -27,22 +27,15 @@ extern uint8_t g_isMqttPublished;
 extern uint32_t calculate_crc32(const void *data, size_t length);
 extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
-extern uint8_t flag_readSD;
+
 extern LIFO_inst g_q;
-
+extern RTC_HandleTypeDef hrtc;
 // Dành cho adjust time hallet to utc
-Time utc_time={
 
-                .year=2014,
-                .month=11,
-                .day = 25,
-                .hour = 16,
-                .minute = 47,
-                .second = 30
-
-};
 uint8_t flag_sync_time = 0;
-extern Time adjust_time;
+extern RTC_TimeTypeDef sTime;
+extern RTC_DateTypeDef sDate;
+extern Time hallet_time;
 // Dành cho ota
 #define FLASH_ADDR_FIRMWARE_UPDATE_INFO 0x0803F000
 #define FLASH_ADDR_FIRMWARE_UPDATE_DOWNLOAD 0x8023000
@@ -163,7 +156,8 @@ void info()
 	g_debugEnable =1;
 	debugPrint("M[%d] STM32 FW = %d ",HAL_GetTick()/1000, FW_VER);
 	debugPrint("M[%d] HW Version = %d ",HAL_GetTick()/1000, HW_VER);
-	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
+	debugPrint("M[%d] Hallet time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,hallet_time.year,hallet_time.month,hallet_time.day,hallet_time.hour,hallet_time.minute,hallet_time.second);
+	debugPrint("M[%d] UTC time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,sDate.Year+2000,sDate.Month,sDate.Date,sTime.Hours,sTime.Minutes,sTime.Seconds);
 	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 //	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
@@ -301,39 +295,46 @@ void GeneralCmd()
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:time:",7)==0)
 		{
-			uint8_t sec,min,hr,date,month;
-			uint16_t yr;
+//			uint8_t sec,min,hr,date,month;
+//			uint16_t yr;
+
 			char tmp[5];
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+7,4);
-			yr = atoi(tmp);
+			sDate.Year = atoi(tmp)-2000;
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+11,2);
-			month = atoi(tmp);
+			sDate.Month = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+13,2);
-			date = atoi(tmp);
+			sDate.Date = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+15,2);
-			hr = atoi(tmp);
+			sTime.Hours = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+17,2);
-			min = atoi(tmp);
+			sTime.Minutes = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+19,2);
-			sec = atoi(tmp);
+			sTime.Seconds = atoi(tmp);
 
-			utc_time.year = yr;
-			utc_time.month = month;
-			utc_time.day = date;
-			utc_time.hour = hr;
-			utc_time.minute = min;
-			utc_time.second = sec;
+//			utc_time.year = yr;
+//			utc_time.month = month;
+//			utc_time.day = date;
+//			utc_time.hour = hr;
+//			utc_time.minute = min;
+//			utc_time.second = sec;
+
+//			sTime.Hours = hr;
+//			sTime.Minutes= min;
+//			sTime.Seconds = sec;
 			g_debugEnable=1;
-			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
+			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,sDate.Year+2000,sDate.Month,sDate.Date,sTime.Hours,sTime.Minutes,sTime.Seconds);
 			g_debugEnable=0;
 			g_forcesend=1;
 			flag_sync_time=1;
+			HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+			HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:MqttPublished",15)==0)
 		{
@@ -364,20 +365,20 @@ void GeneralCmd()
 			g_debugEnable = atoi(g_rx1_buffer+i+7);
 			debugPrint("M[%d] Debug Enable",HAL_GetTick()/1000);
 		}
-		else if(strncmp(g_rx1_buffer+i,"c:sd",4)==0)
-		{
-
-			if(BSP_SD_Init()==MSD_OK)
-			{
-				mqtt_debug_send("Wait for read sd card");
-				flag_readSD=1;
-			}
-			else
-			{
-				mqtt_debug_send("SD card not available\n");
-			}
-
-		}
+//		else if(strncmp(g_rx1_buffer+i,"c:sd",4)==0)
+//		{
+//
+//			if(BSP_SD_Init()==MSD_OK)
+//			{
+//				mqtt_debug_send("Wait for read sd card");
+//				flag_readSD=1;
+//			}
+//			else
+//			{
+//				mqtt_debug_send("SD card not available\n");
+//			}
+//
+//		}
 		else if(strncmp(g_rx1_buffer+i,"c:usbrst",8)==0)
 				{
 				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
@@ -486,7 +487,7 @@ void GeneralCmd()
 			char tmp[20];
 			sprintf(tmp,"[RS485_CHECK,0]");
 			HAL_GPIO_WritePin(RS485_DE_GPIO_Port,RS485_DE_Pin,1);
-			HAL_UART_Transmit(&huart2,(uint8_t *)tmp, strlen(tmp), 100);
+//			HAL_UART_Transmit(&huart2,(uint8_t *)tmp, strlen(tmp), 100);
 			HAL_GPIO_WritePin(RS485_DE_GPIO_Port,RS485_DE_Pin,0);
 		}
 		else if(strncmp(g_rx1_buffer+i,"[SD_CHECK",9)==0)
@@ -512,7 +513,7 @@ void GeneralCmd()
 			fwUpdateInfo.isNeedUpdateFirmware=0;
 			fwUpdateInfo.crc32=0;
 			g_ota=1;
-			Timer_frame_ota =10;
+			Timer_frame_ota = 10;
 			crc32_firmwave=0;
 			memset(data_ota,0xFF,2048);
 			HAL_UART_Transmit(&huart1,(uint8_t *)"ok",2,100);
@@ -554,17 +555,6 @@ void GeneralCmd()
 					}
 				}
 			}
-//
-//		else if(strncmp(g_rx1_buffer+i,"[WD_CHECK",9)==0)
-//		{
-//			WDI_MCU = 0;
-//			R_Config_CMT0_Stop();
-//			R_BSP_SoftwareDelay(3000,BSP_DELAY_MILLISECS);
-//			g_debugEnable = 1;
-//			debugPrint("[WD_CHECK,1,]");
-//			g_debugEnable = 0;
-//			R_Config_CMT0_Start();
-//		}
 	}
 }
 
@@ -572,10 +562,7 @@ void EspCmdHandler()
 {
 	if(UART1_IsDoneFrame()&&g_rx1_cnt>=5)
 	{
-//		debugPrint("M[%d] Intra-Comm Received [%d][%d]:",HAL_GetTick()/1000,g_rx1_cnt,strlen(g_rx1_buffer));
-//		mqtt_debug_send(g_rx1_buffer);
 		GeneralCmd();
-//		Device_Cmd_Handler(g_rx1_buffer);
 		g_rx1_cnt=0;
 		memset(g_rx1_buffer,0,sizeof(g_rx1_buffer));
 	}

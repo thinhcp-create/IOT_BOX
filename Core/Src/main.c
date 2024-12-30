@@ -28,7 +28,6 @@
 #include "espcomm.h"
 #include "usbd_core.h"
 #include "FLASH_PAGE_F1.h"
-#include "time.h"
 #include "devicetype.h"
 
 #define ADDR_APP_PROGRAM 0x08008000
@@ -36,7 +35,6 @@
 
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
-uint8_t flag_readSD=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
 Time hallet_time={
@@ -48,23 +46,11 @@ Time hallet_time={
                 .minute = 47,
                 .second = 30
         };
-TimeDifference time_diff={0};
-Time adjust_time={
-                .year=2014,
-                .month=11,
-                .day = 25,
-                .hour = 16,
-                .minute = 47,
-                .second = 30
-        };
-extern Time utc_time;
-extern uint8_t flag_sync_time;
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
 uint32_t g_device_tick=0;
-uint32_t g_utc_tick=0;
 uint32_t time_force_send=0;
 uint32_t time_wdi=0;
 LIFO_inst g_q;
@@ -82,7 +68,8 @@ volatile uint8_t SCI1_rxdone=0;
 uint16_t g_rx1_cnt;
 uint8_t cntTimeRev1;
 char g_rx1_buffer[MAX_BUFFER_UART1];
-
+RTC_TimeTypeDef sTime = {0};
+RTC_DateTypeDef sDate={0};
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -98,10 +85,11 @@ char g_rx1_buffer[MAX_BUFFER_UART1];
 /* Private variables ---------------------------------------------------------*/
 CRC_HandleTypeDef hcrc;
 
+RTC_HandleTypeDef hrtc;
+
 SD_HandleTypeDef hsd;
 
 UART_HandleTypeDef huart1;
-UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
@@ -111,9 +99,9 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_USART2_UART_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_CRC_Init(void);
+static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -134,12 +122,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		}
 		cntTimeRev1 = RECV_END_TIMEOUT;
 }
-
-DIR dir;
-FILINFO fno;
-FRESULT fresult;
-FATFS *pfs;
-DWORD fre_clust;
 
 uint32_t crc32_table[256]={0};
 
@@ -209,22 +191,12 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_USART1_UART_Init();
   MX_FATFS_Init();
-  MX_USART2_UART_Init();
   MX_SDIO_SD_Init();
   MX_CRC_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   LoadPointer(&g_q);
-  load_time_difference(&time_diff);
-  const TimeDifference time_tick = {
-		  .days = 0,
-		  .hours = 0,
-		  .minutes = 0,
-		  .months = 0,
-		  .seconds = 1,
-		  .years = 0
-  };
   EspComm_init();
-
   if(BSP_SD_Init()==MSD_OK)
   {
 	 mqtt_debug_send("SD card available\n");
@@ -265,14 +237,11 @@ int main(void)
 	  }
 	  if((HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD) && (g_ota==0||Timer_frame_ota == 0) )
 	  {
+
 		  Device_Handler();
 		  g_device_tick = HAL_GetTick();
 	  }
-	  if((HAL_GetTick()-g_utc_tick>UTC_PERIOD) && (g_ota==0||Timer_frame_ota == 0) && flag_sync_time == 1)
-	  {
-		  g_utc_tick = HAL_GetTick();
-		  utc_time = add_time_difference(utc_time,time_tick);
-	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -319,7 +288,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USB;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV128;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
@@ -350,6 +320,64 @@ static void MX_CRC_Init(void)
   /* USER CODE BEGIN CRC_Init 2 */
 
   /* USER CODE END CRC_Init 2 */
+
+}
+
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RTC_Init(void)
+{
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef DateToUpdate = {0};
+
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
+  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
+
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  DateToUpdate.WeekDay = RTC_WEEKDAY_MONDAY;
+  DateToUpdate.Month = RTC_MONTH_JANUARY;
+  DateToUpdate.Date = 1;
+  DateToUpdate.Year = 0;
+
+  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 
@@ -415,39 +443,6 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART2_Init 2 */
-
-  /* USER CODE END USART2_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -504,353 +499,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-enum alarm  {
-            alarm_Low_UV_Lamp=0,
-            alarm_IO_I2C_error,
-            alarm_Dose,
-            alarm_Lamps_not_striking,
-            Not_Used_0	,
-            alarm_PCB_temp_too_high,
-            alarm_System_temp,
-            alarm_Lamp_no_output,
-            alarm_Front_Panel_Ajar,
-            alarm_UV_Sensor,
-            alarm_water_temp
-
-};
-
-enum warn  {
-          warn_End_of_Lamp_Life=0,              // Warning 1
-          Not_Used_1,        //         2 --- Not Used
-          warn_Wiper_not_turning,             //         3
-          warn_Water_temperature_high,        //         4
-          warn_System_temp_limit,             //         5
-          warn_Water_temp_sensor,             //         6
-          warn_UV_temp_sensor,                //         7
-          Not_Used_2,     //         8 --- Not Used
-          warn_System_temp_sensor,            //         9
-          warn_Lamp_Lifetime                 //         10
-};
-uint16_t  getValue(const char *str, const char *label) {
-    char *pos = strstr(str, label);  // Tìm nhãn trong chuỗi
-    if (pos) {
-        pos += strlen(label) + 1;    // Dịch con tr�? sau nhãn và dấu ':'
-        return atoi(pos);            // Chuyển đổi giá trị thành số nguyên
-    }
-    return 0; // Trả v�? 0 nếu không tìm thấy nhãn
-}
-const char* getBitAsString(unsigned int value, int index) {
-    // Kiểm tra bit tại vị trí index và trả v�? chuỗi tương ứng
-    return ((value >> index) & 1) ? "1" : "0";
-}
-char format_string[1024] = {0};
-void format_data(char *data, char *final_string) {
-    char *token;
-    char time_value[20] = {0};  // Chuỗi để lưu giá trị Time
-    int index = 0;
-
-    // Danh sách các nhãn cho từng mục
-
-    const char *labels[] = {
-        "time", "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
-        "ST", "WAT", "LT", "AL", "WN", "OT", "24V", "IT", "FUV", "FCB",
-        "H1", "H2", "SS", "PS", "UVF", "WPS", "PV", "ICB", "ICT",
-        "ICE", "ICG", "ICC", "IOG"
-    };
-    const char *alarm_labels[] ={
-    		  "ALL",
-    		  "AIE",
-    		  "AD",
-    		  "ALS",
-    		  "Not_Used_0"	,
-    		  "APH",
-    		  "AS",
-    		  "ALP",
-    		  "AA",
-    		  "AUS",
-    		  "AW"
-    };
-    const char *warn_labels[] = {
-          "WE",              // Warning 1
-          "Not_Used_1",        //         2 --- Not Used
-          "WW",             //         3
-          "WH",        //         4
-          "WL",             //         5
-          "WWS",             //         6
-          "WUS",                //         7
-          "Not_Used_2",     //         8 --- Not Used
-          "WS",            //         9
-          "WT"
-    };
-
-    // Sử dụng strtok để tách chuỗi
-    token = strtok(data, ",");
-
-    // Bước 1: Tạo giá trị cho "Time" bằng cách nối các mục đầu tiên
-    snprintf(time_value, sizeof(time_value), "%s", token);  // 20240919
-    token = strtok(NULL, ",");
-    strcat(time_value, token);  // 15
-    token = strtok(NULL, ",");
-    strcat(time_value, token);  // 09
-    token = strtok(NULL, ",");
-    strcat(time_value, token);  // 15
-
-    // Thêm giá trị "Time" vào chuỗi kết quả
-    snprintf(final_string, 1024, "%04d%02d%02d%02d%02d%02d\t",adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);  // 20240919150915
-
-    // Bước 2: Gán các giá trị còn lại và nối vào chuỗi kết quả
-    index = 1;  // Bắt đầu từ TreatSt
-    while (token != NULL && index < sizeof(labels)/sizeof(labels[0])) {
-        token = strtok(NULL, ",");
-        if (token != NULL) {
-            // Nối nhãn và giá trị vào chuỗi kết quả
-            strcat(final_string, labels[index]);
-            strcat(final_string,":");
-            strcat(final_string, token);
-            strcat(final_string, "\t");
-        }
-        index++;
-    }
-    if (strstr(final_string,labels[13])!= NULL)
-    {
-    	for(uint8_t i = alarm_Low_UV_Lamp;i<alarm_water_temp+1;i++)
-    	{  if(i != Not_Used_0)
-    		{
-    		strcat(final_string,alarm_labels[i]);
-    		strcat(final_string,":");
-    	    strcat(final_string,getBitAsString(getValue(final_string,"AL"),i));
-    	    strcat(final_string, "\t");
-    		};
-    	}
-    }
-    if (strstr(final_string,labels[14])!= NULL)
-        {
-        	for(uint8_t i = warn_End_of_Lamp_Life;i<warn_Lamp_Lifetime+1;i++)
-        	{  if(i != Not_Used_1 && i!= Not_Used_2)
-        		{
-        		strcat(final_string,warn_labels[i]);
-        		strcat(final_string,":");
-        	    strcat(final_string,getBitAsString(getValue(final_string,"WN"),i));
-        	    strcat(final_string, "\t");
-        		};
-        	}
-        }
-    final_string[strlen(final_string)-1]= '\t';
-}
-void parse_date(const char *date_str, Time *time) {
-    char year_str[5] = {0};   // Chuỗi năm (4 ký tự + null-terminator)
-    char month_str[3] = {0};  // Chuỗi tháng (2 ký tự + null-terminator)
-    char day_str[3] = {0};    // Chuỗi ngày (2 ký tự + null-terminator)
-
-    // Tách năm, tháng, ngày từ chuỗi gốc
-    strncpy(year_str, date_str, 4);   // Lấy 4 ký tự đầu tiên (năm)
-    strncpy(month_str, date_str + 4, 2); // Lấy 2 ký tự tiếp theo (tháng)
-    strncpy(day_str, date_str + 6, 2);   // Lấy 2 ký tự cuối (ngày)
-
-    // Chuyển đổi chuỗi thành số và lưu vào cấu trúc rtc_time
-    time->year = (uint16_t)atoi(year_str);
-    time->month = (uint8_t)atoi(month_str);
-    time->day = (uint8_t)atoi(day_str);
-}
-char extracted_csv[20] = {0};
-void process_data(char *data,const char *filename)
-{
-
-    char formatted_time[20] = {0};
-    char final_data[512] = {0};  // Dữ liệu kết quả cuối cùng
-    char *csv_start = strstr(filename, ".CSV");
-    if (csv_start != NULL) {
-        if (csv_start != NULL) {
-            strncpy(extracted_csv,filename, csv_start-filename);  // Lấy phần 20240918
-        }
-    }
-
-        int hours, minutes, seconds;
-        char *time_start = data;
-        // �?�?c định dạng th�?i gian "15:1:15"
-        sscanf(time_start, "%d:%d:%d", &hours, &minutes, &seconds);
-
-        // �?ịnh dạng lại thành "15,01,15"
-        snprintf(formatted_time, sizeof(formatted_time), "%02d,%02d,%02d", hours, minutes, seconds);
-        hallet_time.hour= hours;
-        hallet_time.minute= minutes;
-        hallet_time.second= seconds;
-        // B�? qua phần th�?i gian trong chuỗi để lấy phần dữ liệu tiếp theo
-        char *data_start = strchr(time_start, ',');
-        if (data_start != NULL && *(data_start+1) != '\0' && *(data_start+1) != '\n') {
-            data_start += 1;  // B�? qua dấu phẩy đầu tiên
-            // Bước 3: Kết hợp chuỗi đã xử lý với phần dữ liệu còn lại
-            snprintf(final_data, sizeof(final_data), "%s,%s,%s", extracted_csv, formatted_time, data_start);
-            parse_date(extracted_csv,&hallet_time);
-            memset(format_string,0,1024);
-            if (flag_sync_time==1) {
-            	        flag_sync_time = 2;
-            	        time_diff = calculate_time_difference(hallet_time, utc_time);
-            }
-            if (flag_sync_time==2) {
-            	adjust_time = add_time_difference(hallet_time, time_diff);
-            }
-            format_data(final_data,format_string);
-            // In ra kết quả cuối cùng
-            mqtt_data_send((char *)format_string);
-            memset(format_string,0,1024);
-    }
-}
-
-
-
-
-
-//FRESULT res;
-//char lineBuffer[256];
-// uint8_t ramtoSD[1000];
-// UINT br=0,bw=0;
-//
-//uint8_t *second_line;
-//void ReadFirstLineFromFile(const char* filename)
-//{
-//	memset(lineBuffer,0,sizeof(lineBuffer));
-//	memset(ramtoSD,0,sizeof(ramtoSD));
-//    // M? file CSV c?n d?c
-//    res = f_open(&USERFile, filename, FA_READ);
-//    if (res == FR_OK) {
-//			while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL) {
-//				process_data(lineBuffer, filename);
-//
-//    }
-//
-//        f_close(&USERFile);
-//        res = f_open(&USERFile, filename, FA_READ);
-//        if (res == FR_OK) {
-//                f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
-//                f_close(&USERFile);
-//        }
-//        res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-//        SD_FATFS_Init();
-//        fresult =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
-//        if(fresult == FR_OK)
-//        {
-//        			fresult = f_stat(filename, &fno);
-//        	        second_line = &ramtoSD[0];
-//        	        if (fresult == FR_OK) {
-//        	        	 uint8_t *newline_pos = (uint8_t *)strchr((char *)ramtoSD, '\r');
-//        	        	 if (newline_pos != NULL) {
-//        	        		 *newline_pos = '\0';
-//        	        		  second_line = newline_pos + 2;
-//        	        	 }
-//        	        	 fresult = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-//        	        }else  fresult = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
-//        	        f_lseek(&SDFile, f_size(&SDFile));
-//        	        fresult = FR_DISK_ERR;
-//        	        mqtt_debug_send((char *)second_line);
-//        	        fresult = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
-//        	        if (fresult == FR_OK)
-//        	        	{
-//        	        	mqtt_debug_send("Write data to SD successed\n");
-//        	        	}
-//        	        f_close(&SDFile);
-//        	        f_mount(NULL, (TCHAR const*)SDPath, 1);
-//        	        RAM_FATFS_Init();
-//        }
-//
-//    } else {
-//    	debugPrint("Could not open file in RAM\n");
-//    }
-//    memset(lineBuffer,0,sizeof(lineBuffer));
-//    memset(ramtoSD,0,sizeof(ramtoSD));
-//    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
-//    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-//    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-//    HAL_Delay(500);
-//    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
-//}
-
-
-
-//FRESULT res;
-//void FS_FileOperations()
-//{
-////	send_debug("Debug FS_FileOperations\n");
-//  /* Register the file system object to the FatFs module */
-//	RAM_FATFS_Init();
-////	send_debug("Debug f_mount(&USERFatFS, (TCHAR const*)USERPath, 1)\n");
-//	res = f_mount(&USERFatFS, (TCHAR const*)USERPath, 1);
-//  if(res == FR_OK)
-//  {
-//          /* Open the text file object with read access */
-//					res = f_opendir(&dir, (TCHAR const*)USERPath);
-//					if (res == FR_OK) {
-////						send_debug("Debug while((fno.fattrib & AM_DIR) || fno.fname[0] != 0)\n");
-//						do {
-//											memset(fno.fname,0,sizeof(fno.fname));
-//											res = f_readdir(&dir, &fno);
-//
-//										// Ki?m tra n?u không còn file nào
-//										if (res != FR_OK || fno.fname[0] == 0) {
-////												debugPrint("Read end\n");
-//												break;
-//										}
-//
-//										// B? qua thu m?c
-//										if (fno.fattrib & AM_DIR) {
-////											debugPrint("Found folder\n");
-//										}
-//
-//										// Ki?m tra n?u file có ph?n m? r?ng .csv
-//										if (strstr(fno.fname, ".CSV") != NULL) {
-////											debugPrint("Found CSV file: ");
-////											debugPrint(fno.fname);
-////											debugPrint("\n");
-//												// �??c dòng d?u tiên t? file CSV
-//												ReadFirstLineFromFile(fno.fname);
-//										}
-//
-//									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
-//						res= f_closedir(&dir);
-//
-////						res = f_mount(NULL, (TCHAR const*)USERPath, 1);
-//					}
-//  }
-//
-// //
-//
-//}
-
-//void SD_FileOperations()
-//{
-//
-//  /* Register the file system object to the FatFs module */
-//	SD_FATFS_Init();
-//	res = f_mount(&SDFatFS, (TCHAR const*)SDPath, 1);
-//  if(res == FR_OK)
-//  {
-//          /* Open the text file object with read access */
-//					res = f_opendir(&dir, (TCHAR const*)SDPath);
-//					if (res == FR_OK) {
-//						do {
-//											memset(fno.fname,0,sizeof(fno.fname));
-//											res = f_readdir(&dir, &fno);
-//
-//										// Ki?m tra n?u không còn file nào
-//										if (res != FR_OK || fno.fname[0] == 0) {
-//												break;
-//										}
-//
-//										// B? qua thu m?c
-//										if (fno.fattrib & AM_DIR) {
-//											mqtt_debug_send("Found folder\n");
-//										}
-//
-//										// Ki?m tra n?u file có ph?n m? r?ng .csv
-//										if (strstr(fno.fname, ".CSV") != NULL) {
-//											mqtt_debug_send(fno.fname);
-//										}
-//
-//									}while((fno.fattrib & AM_DIR) || fno.fname[0] != 0);
-//						res= f_closedir(&dir);
-//					}
-//  }
-//}
 
 /* USER CODE END 4 */
 
@@ -865,6 +513,9 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+	  HAL_NVIC_SystemReset();
+//	  	 FullSystemReset();
+	  mqtt_debug_send("After HardFault_Handler, should never be reached.\n");
   }
   /* USER CODE END Error_Handler_Debug */
 }
