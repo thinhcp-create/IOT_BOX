@@ -29,6 +29,9 @@ extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
 extern uint8_t flag_readSD;
 extern LIFO_inst g_q;
+extern RTC_HandleTypeDef hrtc;
+extern RTC_TimeTypeDef sTime;
+extern RTC_DateTypeDef sDate;
 
 // Dành cho adjust time hallet to utc
 Time utc_time={
@@ -301,34 +304,35 @@ void GeneralCmd()
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:time:",7)==0)
 		{
-			uint8_t sec,min,hr,date,month;
-			uint16_t yr;
+//			uint8_t sec,min,hr,date,month;
+//			uint16_t yr;
 			char tmp[5];
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+7,4);
-			yr = atoi(tmp);
-			memset(tmp,0,sizeof(tmp));
+			sDate.Year = atoi(tmp)-2000;
+		    memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+11,2);
-			month = atoi(tmp);
+			sDate.Month = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+13,2);
-			date = atoi(tmp);
+			sDate.Date = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+15,2);
-			hr = atoi(tmp);
+			sTime.Hours = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+17,2);
-			min = atoi(tmp);
+			sTime.Minutes = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+19,2);
-			sec = atoi(tmp);
-
-			utc_time.year = yr;
-			utc_time.month = month;
-			utc_time.day = date;
-			utc_time.hour = hr;
-			utc_time.minute = min;
-			utc_time.second = sec;
+			sTime.Seconds = atoi(tmp);
+			HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+			HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+//			utc_time.year = yr;
+//			utc_time.month = month;
+//			utc_time.day = date;
+//			utc_time.hour = hr;
+//			utc_time.minute = min;
+//			utc_time.second = sec;
 			g_debugEnable=1;
 			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
 			g_debugEnable=0;
