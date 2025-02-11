@@ -184,4 +184,11 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+  .usb_msc_memory (NOLOAD) :
+  {
+    . = ALIGN(512);
+    *(.usb_msc_section)
+    . = ALIGN(512);
+  } >RAM
+  
 }

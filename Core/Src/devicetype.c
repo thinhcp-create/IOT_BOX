@@ -15,7 +15,7 @@
 uint32_t g_alive_tick=0;
 uint32_t g_hallet_tick=0;
 uint16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
-uint16_t g_NbMessUp = 20;
+uint16_t g_NbMessUp = 5;
 uint8_t g_regsupdate;
 uint16_t g_qpos; //Current param pointer in queque
 uint8_t upload_pnt; //current param upload
@@ -101,9 +101,11 @@ void FS_FileOperations()
   }
 }
 
+
+//uint8_t ramtoSD[1000];
+uint8_t ramtoSD[256];
 char lineBuffer[256];
 char Last_line[256];
-uint8_t ramtoSD[1000];
 uint8_t *second_line;
 void ReadFirstLineFromFile(const char* filename)
 {
@@ -112,9 +114,11 @@ void ReadFirstLineFromFile(const char* filename)
 	FILINFO fno;
 	uint8_t line=0;
 	DIR dir;
+
 	memset(lineBuffer,0,sizeof(lineBuffer));
 	memset(Last_line,0,sizeof(Last_line));
-	memset(ramtoSD,0,sizeof(ramtoSD));
+	memset(ramtoSD,0,256);
+
     // M? file CSV c?n d?c
     res = f_open(&USERFile, filename, FA_READ);
     if (res == FR_OK)
@@ -130,10 +134,15 @@ void ReadFirstLineFromFile(const char* filename)
 		}
 		f_close(&USERFile);
 		if (sscanf(filename, "%04d%02d%02d.CSV", &hallet_time.year, &hallet_time.month, &hallet_time.day)!=3)
-				return;
-		if (sscanf(Last_line, "%d:%d:%d", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
-		    		return;
-		if (flag_sync_time==1)
+		{
+			return;
+		}
+
+		if (sscanf(Last_line, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
+		{
+			return;
+		}
+		if (flag_sync_time==1 && g_isMqttPublished==1)
 		{
 		       flag_sync_time = 2;
 		       HAL_RTC_GetDate(&hrtc, &sDate,RTC_FORMAT_BIN);
@@ -154,6 +163,7 @@ void ReadFirstLineFromFile(const char* filename)
 								line++;
 								if(line>=2)
 								{
+									memset(DeviceRegs,0,sizeof(DeviceRegs));
 									ParseData(lineBuffer,DeviceRegs);
 									if (flag_handle_csv_done)
 									{
@@ -161,7 +171,7 @@ void ReadFirstLineFromFile(const char* filename)
 										Hallet_RegsToParam(flag_handle_csv_done);
 //										if(line==2)
 										ParamQueueToMQTT();
-//										memset(DeviceRegs,0,sizeof(DeviceRegs));
+//
 									}
 
 								}
@@ -172,6 +182,7 @@ void ReadFirstLineFromFile(const char* filename)
 		{
 			res = f_read(&USERFile, ramtoSD, f_size(&USERFile), &br);
 			f_close(&USERFile);
+			f_unlink(filename);
 			res = f_mount(NULL, (TCHAR const*)USERPath, 1);
 			SD_FATFS_Init();
 			res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
@@ -235,11 +246,12 @@ void ReadFirstLineFromFile(const char* filename)
 				res = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
 				if (res == FR_OK)
 				{
-					mqtt_debug_send("Write data to SD successed\n");
+//					mqtt_debug_send("Write data to SD successed\n");
+					mqtt_debug_send(second_line);
 				}
 				f_close(&SDFile);
 				f_mount(NULL, (TCHAR const*)SDPath, 1);
-				RAM_FATFS_Init();
+
 			}
 		}
 
@@ -247,10 +259,12 @@ void ReadFirstLineFromFile(const char* filename)
     } else {
     	debugPrint("Could not open file in RAM\n");
     }
+    RAM_FATFS_Init();
+
     memset(lineBuffer,0,sizeof(lineBuffer));
-    memset(ramtoSD,0,sizeof(ramtoSD));
-    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
-    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
+    memset(ramtoSD,0,256);
+//    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
+//    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
     HAL_Delay(500);
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
@@ -259,7 +273,7 @@ void ReadFirstLineFromFile(const char* filename)
 void ParseData(const char* input,uint16_t * Value) {
 	char buffer[256];  // Tạo bản sao của chuỗi đầu vào
 	strncpy(buffer, input, sizeof(buffer));
-	if (sscanf(buffer, "%d:%d:%d", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
+	if (sscanf(buffer, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
 		return;
     adjust_time = add_time_difference(hallet_time, time_diff);
     // Bỏ qua phần "11:48:43" bằng cách tìm dấu phẩy đầu tiên
@@ -433,7 +447,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		SendParameterstoMqtt[3] = tmp[1];
 		SendParameterstoMqtt[4] = tmp[2];
 
-		if(g_forcesend == 1 ||flag_sync_time == 0 || flag_sync_time == 1)
+		if(g_forcesend == 1 ||flag_sync_time == 0)
 		{
 			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 			g_forcesend =0;

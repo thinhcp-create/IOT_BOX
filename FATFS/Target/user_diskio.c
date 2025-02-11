@@ -127,13 +127,7 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
-	uint32_t BufferSize = (BLOCK_SIZE * count);
-	uint8_t *pMem = (uint8_t *) (buffer+ (sector * BLOCK_SIZE));
-
-	for(; BufferSize != 0; BufferSize--)
-	  {
-	    *buff++ = *(__IO uint8_t *)pMem++;
-	  }
+	memcpy(buff,(void *)&buffer[sector*STORAGE_BLK_SIZ], count*STORAGE_BLK_SIZ);
     return RES_OK;
   /* USER CODE END READ */
 }
@@ -156,13 +150,7 @@ DRESULT USER_write (
 {
   /* USER CODE BEGIN WRITE */
   /* USER CODE HERE */
-	uint32_t BufferSize = (BLOCK_SIZE * count) + count;
-	uint8_t *pMem = (uint8_t *) (buffer + (sector * BLOCK_SIZE));
-
-	for(; BufferSize != 0; BufferSize--)
-	  {
-	    *(__IO uint8_t *)pMem++ = *buff++;
-	  }
+	memcpy((void *)&buffer[sector*STORAGE_BLK_SIZ], buff, count*STORAGE_BLK_SIZ);
     return RES_OK;
   /* USER CODE END WRITE */
 }

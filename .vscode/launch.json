@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "d:/STM32/test_box_iot/espcomm",
-      "program": "d:/STM32/test_box_iot/espcomm/build/Debug/outDebug",
+      "cwd": "d:/STM32/test_box_iot/USB_DEVICE/App",
+      "program": "d:/STM32/test_box_iot/USB_DEVICE/App/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

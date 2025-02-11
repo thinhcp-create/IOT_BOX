@@ -67,7 +67,7 @@
 #define STORAGE_BLK_SIZ                  0x200
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
- volatile uint8_t buffer[STORAGE_BLK_SIZ  * STORAGE_BLK_NBR]={0};
+__attribute__((section(".usb_msc_section"), aligned(512))) uint8_t buffer[STORAGE_BLK_SIZ  * STORAGE_BLK_NBR]={0};
  uint8_t write_flag = 0,flag_handle_csv=0;
  uint64_t write_time=0;
  extern uint8_t flag_reload;
@@ -209,16 +209,10 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
 	if( write_flag == 1 && (HAL_GetTick()- write_time > 1000))
-	  	{
-	  		flag_handle_csv=1;
-	  		write_flag=0;
-	  	}
-//	if (flag_reload==1)
-//	{
-//		return (USBD_BUSY);
-//		flag_reload=0;
-//	}
-
+	{
+	  	flag_handle_csv=1;
+	  	write_flag=0;
+	}
 	return (USBD_OK);
   /* USER CODE END 4 */
 }
