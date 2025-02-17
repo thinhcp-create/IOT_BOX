@@ -62,8 +62,9 @@ extern "C" {
 #define IFLASH_ADD_PNT_FRONT 0x0803E000
 #define TIME_DIFFERENCE 0x0803E800
 typedef struct {
-	int32_t pnt_front;
-	int32_t pnt_rear;
+	uint32_t pnt_front;
+	uint32_t pnt_rear;
+	uint32_t crc;
 //	int32_t addr_begin;
 //	int32_t addr_end;
 }LIFO_inst;
@@ -91,6 +92,8 @@ typedef struct
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
+
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
@@ -120,8 +123,6 @@ void Error_Handler(void);
 #define RST_WIFI_GPIO_Port GPIOA
 #define LED_Pin GPIO_PIN_0
 #define LED_GPIO_Port GPIOB
-#define WDI_Pin GPIO_PIN_1
-#define WDI_GPIO_Port GPIOB
 #define DO1_Pin GPIO_PIN_12
 #define DO1_GPIO_Port GPIOB
 #define DO2_Pin GPIO_PIN_13

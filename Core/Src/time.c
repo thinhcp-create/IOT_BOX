@@ -7,13 +7,26 @@
 #include "time.h"
 #include "FLASH_PAGE_F1.h"
 
+extern CRC_HandleTypeDef hcrc;
 void save_time_difference(TimeDifference* diff)
 {
-	Flash_Write_Data(TIME_DIFFERENCE,(uint32_t *)diff,6);
+    diff->crc = diff->years + diff->months + diff->days + diff->hours + diff->minutes + diff->seconds;
+	Flash_Write_Data(TIME_DIFFERENCE,(uint32_t *)diff,7);
 }
 void load_time_difference(TimeDifference* diff)
 {
-	Flash_Read_Data(TIME_DIFFERENCE,(uint32_t *)diff,6);
+	Flash_Read_Data(TIME_DIFFERENCE,(uint32_t *)diff,7);
+    uint16_t crc = diff->years + diff->months + diff->days + diff->hours + diff->minutes + diff->seconds;
+    if( crc !=  diff->crc)
+    {
+        diff->years=0;
+        diff->months=0;
+        diff->days=0;
+        diff->hours=0;
+        diff->minutes=0;
+        diff->seconds=0;
+        diff->crc = 0;
+    }
 }
 
 // Kiểm tra xem năm có phải là năm nhuận hay không

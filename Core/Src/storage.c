@@ -12,6 +12,7 @@
 #include "fatfs.h"
 #include "FLASH_PAGE_F1.h"
 
+extern CRC_HandleTypeDef hcrc;
 extern uint32_t g_NbSector;
 extern SD_HandleTypeDef hsd;
 extern uint32_t SD_DATA_SECTOR_BEGIN ;
@@ -37,11 +38,18 @@ uint8_t QueueIsFull(LIFO_inst *q)
 void SavePointer(LIFO_inst* q)
 {
 	//Save pointer to internal Flash
-	Flash_Write_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,2);
+	q->crc = q->pnt_rear - q->pnt_front;
+	Flash_Write_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,3);
 }
 void LoadPointer(LIFO_inst* q)
 {
-	Flash_Read_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,2);
+	Flash_Read_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,3);
+	if((q->pnt_rear - q->pnt_front) !=  q->crc)
+	{
+		q->pnt_front=0;
+		q->pnt_rear=0;
+		q->crc = 0;
+	}
 }
 void SaveData(LIFO_inst *q, char * data)
 {
