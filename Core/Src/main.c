@@ -224,25 +224,15 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
   htim3.Instance->CCR4 = 200;
-//  LoadPointer(&g_q);
-//  load_time_difference(&time_diff);
-  const TimeDifference time_tick = {
-		  .days = 0,
-		  .hours = 0,
-		  .minutes = 0,
-		  .months = 0,
-		  .seconds = 1,
-		  .years = 0
-  };
+  LoadPointer(&g_q);
+  load_time_difference(&time_diff);
   EspComm_init();
-
   if(BSP_SD_Init()==MSD_OK)
   {
 	 mqtt_debug_send("SD card available\n");
 	 g_NbSector = hsd.SdCard.BlockNbr;
 	 SD_DATA_SECTOR_END = g_NbSector;
 	 SD_DATA_SECTOR_BEGIN = g_NbSector - 1024*1024;
-
   }
   else
   {
@@ -263,12 +253,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-//	  if(HAL_GetTick()-time_wdi >WDI_PERIOD)
-//	  {
-//		  time_wdi= HAL_GetTick();
-//		  HAL_GPIO_TogglePin(WDI_GPIO_Port,WDI_Pin);
-//	  }
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
 	  {
 		  EspCmdHandler();
@@ -279,11 +263,6 @@ int main(void)
 		  Device_Handler();
 		  g_device_tick = HAL_GetTick();
 	  }
-//	  if((HAL_GetTick()-g_utc_tick>UTC_PERIOD) && (g_ota==0||Timer_frame_ota == 0) && flag_sync_time == 1)
-//	  {
-//		  g_utc_tick = HAL_GetTick();
-//		  utc_time = add_time_difference(utc_time,time_tick);
-//	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

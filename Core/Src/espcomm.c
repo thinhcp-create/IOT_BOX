@@ -32,7 +32,8 @@ extern LIFO_inst g_q;
 extern RTC_HandleTypeDef hrtc;
 extern RTC_TimeTypeDef sTime;
 extern RTC_DateTypeDef sDate;
-
+extern uint8_t usbStatus;
+extern const uint8_t g_uprate ;
 // Dành cho adjust time hallet to utc
 Time utc_time={
 
@@ -168,8 +169,9 @@ void info()
 	debugPrint("M[%d] HW Version = %d ",HAL_GetTick()/1000, HW_VER);
 	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
 	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
-//	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
+	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
+	debugPrint("M[%d] %s ",HAL_GetTick()/1000, usbStatus ? "usb connected" : "usb not connected");
 //	TestFlash();
 	g_debugEnable =0;
 }

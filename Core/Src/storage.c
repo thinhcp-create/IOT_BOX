@@ -43,8 +43,8 @@ void SavePointer(LIFO_inst* q)
 }
 void LoadPointer(LIFO_inst* q)
 {
-	Flash_Read_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,3);
-	if((q->pnt_rear - q->pnt_front) !=  q->crc)
+	memcpy((void*)q, (void*)IFLASH_ADD_PNT_FRONT, sizeof(q)*3);
+	if((q->pnt_rear - q->pnt_front) !=  q->crc || q->pnt_front < 0 )
 	{
 		q->pnt_front=0;
 		q->pnt_rear=0;

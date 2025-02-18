@@ -60,7 +60,7 @@ extern "C" {
 #define TYPE 11
 
 #define IFLASH_ADD_PNT_FRONT 0x0803E000
-#define TIME_DIFFERENCE 0x0803E800
+#define TIME_DIFFERENCE      0x0803E800
 typedef struct {
 	uint32_t pnt_front;
 	uint32_t pnt_rear;

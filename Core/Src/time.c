@@ -15,7 +15,7 @@ void save_time_difference(TimeDifference* diff)
 }
 void load_time_difference(TimeDifference* diff)
 {
-	Flash_Read_Data(TIME_DIFFERENCE,(uint32_t *)diff,7);
+	memcpy((void*)diff, (void*)TIME_DIFFERENCE, sizeof(diff)*7);
     uint16_t crc = diff->years + diff->months + diff->days + diff->hours + diff->minutes + diff->seconds;
     if( crc !=  diff->crc)
     {

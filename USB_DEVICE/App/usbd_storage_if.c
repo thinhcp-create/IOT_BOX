@@ -68,9 +68,9 @@
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 __attribute__((section(".usb_msc_section"), aligned(512))) uint8_t buffer[STORAGE_BLK_SIZ  * STORAGE_BLK_NBR]={0};
- uint8_t write_flag = 0,flag_handle_csv=0;
- uint64_t write_time=0;
- extern uint8_t flag_reload;
+uint8_t write_flag = 0,flag_handle_csv=0;
+uint64_t write_time=0;
+uint8_t usbStatus=0;
 /* USER CODE END PRIVATE_DEFINES */
 
 /**
@@ -213,6 +213,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 	  	flag_handle_csv=1;
 	  	write_flag=0;
 	}
+	usbStatus=1;
 	return (USBD_OK);
   /* USER CODE END 4 */
 }

@@ -14,7 +14,7 @@
 
 uint32_t g_alive_tick=0;
 uint32_t g_hallet_tick=0;
-uint16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
+int16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
 uint16_t g_NbMessUp = 5;
 uint8_t g_regsupdate;
 uint16_t g_qpos; //Current param pointer in queque
@@ -24,6 +24,7 @@ float g_24V;
 float g_4V2;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
 uint8_t flag_handle_csv_done=0;
+const uint8_t g_uprate = 60;
 
 extern uint8_t buffer[];
 extern Time hallet_time,utc_time,adjust_time;
@@ -41,35 +42,35 @@ extern LIFO_inst g_q;
 extern DWORD fre_clust,fre_sect;
 
 const char *params[] = {
-        "TS", "UD", "UVT", "UVI", "LL", "LW", "RL", "RW", "PT",
-        "ST", "WAT", "LT", "AL", "WN", "OT", "24V", "IT", "FUV", "FCB",
-        "H1", "H2", "SS", "PS", "UVF", "WPS", "PV", "ICB", "ICT",
-        "ICE", "ICG", "ICC", "IOG"
+        "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+        "20", "21", "22", "23", "24", "25", "26", "27", "28",
+        "29", "30", "31", "32"
     };
     const char *alarms[] ={
-    		  "ALL",
-    		  "AIE",
-    		  "AD",
-    		  "ALS",
+    		  "A1",
+    		  "A2",
+    		  "A3",
+			  "A4",
     		  "Not_Used_0"	,
-    		  "APH",
-    		  "AS",
-    		  "ALP",
-    		  "AA",
-    		  "AUS",
-    		  "AW"
+    		  "A6",
+    		  "A7",
+    		  "A8",
+    		  "A9",
+			  "A10",
+			  "A11"
     };
     const char *warns[] = {
-          "WE",              // Warning 1
+    	  "W1",             // Warning 1
           "Not_Used_1",        //         2 --- Not Used
-          "WW",             //         3
-          "WH",        //         4
-          "WL",             //         5
-          "WWS",             //         6
-          "WUS",                //         7
+          "W3",             //         5
+          "W4",             //         6
+          "W5",
+		  "W6",
+		  "W7",
           "Not_Used_2",     //         8 --- Not Used
-          "WS",            //         9
-          "WT"
+		  "W9",
+		  "W10"
     };
 void FS_FileOperations()
 {
@@ -270,7 +271,7 @@ void ReadFirstLineFromFile(const char* filename)
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 
 }
-void ParseData(const char* input,uint16_t * Value) {
+void ParseData(const char* input,int16_t * Value) {
 	char buffer[256];  // Tạo bản sao của chuỗi đầu vào
 	strncpy(buffer, input, sizeof(buffer));
 	if (sscanf(buffer, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
@@ -344,8 +345,8 @@ void Hallet_RegsToParam(uint8_t sts)
 		{
 			sprintf(g_param_queue[i].code,"%s",params[i]);
 			sprintf(g_param_queue[i].value,"%d",DeviceRegs[i]);
-			if (strcmp(params[i],"AL")==0) alarm = DeviceRegs[i];
-			if (strcmp(params[i],"WN")==0) warn = DeviceRegs[i];
+			if (strcmp(params[i],"13")==0) alarm = DeviceRegs[i];
+			if (strcmp(params[i],"14")==0) warn = DeviceRegs[i];
 			g_qpos++;
 		}
 		for(uint8_t i=0; i<sizeof(alarms)/sizeof(alarms[0]); i++)
@@ -406,9 +407,9 @@ void Hallet_RegsToParam(uint8_t sts)
 	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"HW");
 	sprintf(g_param_queue[g_qpos].value,"%d",HW_VER);
-//	g_qpos++;
-//	sprintf(g_param_queue[g_qpos].code,"UPR");
-//	sprintf(g_param_queue[g_qpos].value,"%d",g_uprate);
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"UPR");
+	sprintf(g_param_queue[g_qpos].value,"%d",g_uprate);
 
 	g_paramupdate=1;
 }
@@ -454,14 +455,8 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		}
 		else
 		{
-			if(g_isMqttPublished==1)
-			{
-				if(BSP_SD_Init()==MSD_OK)
-				{
-					SendData(&g_q,g_NbMessUp);
-				}
-			}
-			else
+
+			if(g_isMqttPublished==0)
 			{
 				if(BSP_SD_Init()==MSD_OK)
 				{
@@ -476,6 +471,15 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		{
 			g_paramupdate=0;
 		}
+
 	}
+	if(g_isMqttPublished==1)
+				{
+					if(BSP_SD_Init()==MSD_OK)
+					{
+						if(QueueIsEmpty(&g_q) == 0)
+							SendData(&g_q,g_NbMessUp);
+					}
+				}
 }
 
