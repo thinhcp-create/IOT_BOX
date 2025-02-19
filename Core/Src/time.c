@@ -47,7 +47,44 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
     // Trả về số ngày của tháng
     return days[month - 1];
 }
+void increaseTimeSeconds(Time *t, uint8_t second_up) {
+    // Đảm bảo giá trị second_up hợp lệ
+    if (second_up > 60) {
+        second_up = 60;
+    }
 
+    t->second += second_up;
+
+    // Xử lý tràn giây
+    while (t->second >= 60) {
+        t->second -= 60;
+        t->minute++;
+    }
+
+    // Xử lý tràn phút
+    while (t->minute >= 60) {
+        t->minute -= 60;
+        t->hour++;
+    }
+
+    // Xử lý tràn giờ
+    while (t->hour >= 24) {
+        t->hour -= 24;
+        t->day++;
+    }
+
+    // Xử lý tràn ngày
+    while (t->day > days_in_month(t->month, t->year)) {
+        t->day -= days_in_month(t->month, t->year);
+        t->month++;
+
+        // Xử lý tràn tháng
+        if (t->month > 12) {
+            t->month = 1;
+            t->year++;
+        }
+    }
+}
 TimeDifference calculate_time_difference(Time t1, Time t2) {
     TimeDifference diff = {0};
 

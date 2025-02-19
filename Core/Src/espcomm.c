@@ -27,13 +27,15 @@ extern uint8_t g_isMqttPublished;
 extern uint32_t calculate_crc32(const void *data, size_t length);
 extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
-extern uint8_t flag_readSD;
+//extern uint8_t flag_readSD;
 extern LIFO_inst g_q;
 extern RTC_HandleTypeDef hrtc;
 extern RTC_TimeTypeDef sTime;
 extern RTC_DateTypeDef sDate;
 extern uint8_t usbStatus;
 extern const uint8_t g_uprate ;
+//extern uint8_t usb_reconnect;
+
 // Dành cho adjust time hallet to utc
 Time utc_time={
 
@@ -48,8 +50,22 @@ Time utc_time={
 uint8_t flag_sync_time = 0;
 extern Time adjust_time;
 // Dành cho ota
+/*size cho boot loader hien dang toi da la 0x5000 (20kb) bat dau tu 0x8000000-0x8005000
+
+
+    0x8000000 -> 0x8005000  :bootloader    10 pages (20kb)= 20480
+    0x8005000 -> 0x8020800  :application  55 pages * 2048 = 110kb = 112640
+    0x8020800 -> 0x8021800  :reversed      2 pages 4kb = 4096
+    0x8021800 -> 0x803D000  :fw download  55 pages * 2048 = 110kb = 112640
+		0x803D000 -> 0x803E000	:reversed      2 pages 4kb = 4096
+		0x0803E000 luu data cua front rear pointer quan ly cac block raw cua sd card phuc vu gui bu khi mat mang
+		0x0830E800 luu data cua timediff phuc vu tinh toan utc time dua vao do chenh lech thoi gian
+		0x0803F000 luu info firmware update , page 126,
+		0x0803F800 page 127 reversed
+
+*/
 #define FLASH_ADDR_FIRMWARE_UPDATE_INFO 0x0803F000
-#define FLASH_ADDR_FIRMWARE_UPDATE_DOWNLOAD 0x8023000
+#define FLASH_ADDR_FIRMWARE_UPDATE_DOWNLOAD 0x8021800
 typedef struct __attribute__((packed))			//__attribute__((packed)) noi voi complie k add padding alignment
 {
 	uint32_t firmwareSize;
@@ -170,7 +186,8 @@ void info()
 	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
 	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
-	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
+	if(BSP_SD_Init()==MSD_OK) 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
+	else 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, "SD card not available");
 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, usbStatus ? "usb connected" : "usb not connected");
 //	TestFlash();
 	g_debugEnable =0;
@@ -370,27 +387,28 @@ void GeneralCmd()
 			g_debugEnable = atoi(g_rx1_buffer+i+7);
 			debugPrint("M[%d] Debug Enable",HAL_GetTick()/1000);
 		}
-		else if(strncmp(g_rx1_buffer+i,"c:sd",4)==0)
-		{
-
-			if(BSP_SD_Init()==MSD_OK)
-			{
-				mqtt_debug_send("Wait for read sd card");
-				flag_readSD=1;
-			}
-			else
-			{
-				mqtt_debug_send("SD card not available\n");
-			}
-
-		}
-		else if(strncmp(g_rx1_buffer+i,"c:usbrst",8)==0)
-				{
-				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-			    HAL_Delay(500);
-			    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
-			    mqtt_debug_send("USB refresh\n");
-				}
+//		else if(strncmp(g_rx1_buffer+i,"c:sd",4)==0)
+//		{
+//
+//			if(BSP_SD_Init()==MSD_OK)
+//			{
+//				mqtt_debug_send("Wait for read sd card");
+//				flag_readSD=1;
+//			}
+//			else
+//			{
+//				mqtt_debug_send("SD card not available\n");
+//			}
+//
+//		}
+//		else if(strncmp(g_rx1_buffer+i,"c:usbrst",8)==0)
+//				{
+//				usb_reconnect=1;
+////				HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+////			    HAL_Delay(500);
+////			    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+////			    mqtt_debug_send("USB refresh\n");
+//				}
 		else if(strncmp(g_rx1_buffer+i,"[IN_CHECK,1",11)==0)
 		{
 			g_debugEnable = 1;
@@ -513,6 +531,7 @@ void GeneralCmd()
 		// Dành cho ota thiết bị hallet uv
 		else if(strncmp(g_rx1_buffer+i,"c:hvbegin:",10)==0)
 		{
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
 			g_debugEnable = 1;
 			fwUpdateInfo.firmwareSize = atoi(g_rx1_buffer+i+10);
 			fwUpdateInfo.isNeedUpdateFirmware=0;

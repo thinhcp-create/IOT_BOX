@@ -15,7 +15,7 @@
 uint32_t g_alive_tick=0;
 uint32_t g_hallet_tick=0;
 int16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
-uint16_t g_NbMessUp = 5;
+uint16_t g_NbMessUp = 10;
 uint8_t g_regsupdate;
 uint16_t g_qpos; //Current param pointer in queque
 uint8_t upload_pnt; //current param upload
@@ -154,6 +154,7 @@ void ReadFirstLineFromFile(const char* filename)
 		       utc_time.month = sDate.Month;
 		       utc_time.second= sTime.Seconds;
 		       utc_time.year = sDate.Year + 2000;
+		       if (line == 2 ) increaseTimeSeconds(&hallet_time,30);
 		       time_diff = calculate_time_difference(hallet_time, utc_time);
 		}
 		line=0;
@@ -475,11 +476,17 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 	}
 	if(g_isMqttPublished==1)
 				{
-					if(BSP_SD_Init()==MSD_OK)
+					static uint32_t send_data_saved_period =0;
+					if(HAL_GetTick()- send_data_saved_period >= 30000)
 					{
-						if(QueueIsEmpty(&g_q) == 0)
-							SendData(&g_q,g_NbMessUp);
+						send_data_saved_period = HAL_GetTick();
+						if(BSP_SD_Init()==MSD_OK)
+						{
+							if(QueueIsEmpty(&g_q) == 0)
+								SendData(&g_q,g_NbMessUp);
+						}
 					}
+
 				}
 }
 

@@ -31,12 +31,12 @@
 #include "time.h"
 #include "devicetype.h"
 
-#define ADDR_APP_PROGRAM 0x08008000
+#define ADDR_APP_PROGRAM 0x08005000
 #define CRC32_POLYNOMIAL 0x04C11DB7
 
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
-uint8_t flag_readSD=0;
+//uint8_t usb_reconnect=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
 Time hallet_time={
@@ -260,9 +260,12 @@ int main(void)
 	  }
 	  if((HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD) && (g_ota==0||Timer_frame_ota == 0) )
 	  {
+
 		  Device_Handler();
+		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 		  g_device_tick = HAL_GetTick();
 	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

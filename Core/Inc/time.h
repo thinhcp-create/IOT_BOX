@@ -32,6 +32,7 @@ typedef struct __attribute__((packed)) {
 
 TimeDifference calculate_time_difference(Time t1, Time t2);
 Time add_time_difference(Time base, TimeDifference diff);
+void increaseTimeSeconds(Time *t, uint8_t second_up);
 void load_time_difference(TimeDifference* diff);
 
 #endif /* INC_TIME_H_ */
