@@ -262,7 +262,11 @@ int main(void)
 	  {
 
 		  Device_Handler();
-		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)
+			  {
+			  	  //cần xử lý lại cho mượt tránh ảnh hưởng đến kết thúc ota
+			  	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+			  }
 		  g_device_tick = HAL_GetTick();
 	  }
 

@@ -246,11 +246,11 @@ void ReadFirstLineFromFile(const char* filename)
 				res = FR_DISK_ERR;
 //				mqtt_debug_send((char *)second_line);
 				res = f_write(&SDFile,(char *)second_line,strlen((char *)second_line),&bw);
-				if (res == FR_OK)
-				{
-//					mqtt_debug_send("Write data to SD successed\n");
-					mqtt_debug_send(second_line);
-				}
+//				if (res == FR_OK)
+//				{
+////					mqtt_debug_send("Write data to SD successed\n");
+//					mqtt_debug_send(second_line);
+//				}
 				f_close(&SDFile);
 				f_mount(NULL, (TCHAR const*)SDPath, 1);
 
