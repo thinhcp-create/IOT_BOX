@@ -29,26 +29,15 @@ extern CRC_HandleTypeDef hcrc;
 extern SD_HandleTypeDef hsd;
 //extern uint8_t flag_readSD;
 extern LIFO_inst g_q;
-extern RTC_HandleTypeDef hrtc;
-extern RTC_TimeTypeDef sTime;
-extern RTC_DateTypeDef sDate;
+extern Time g_time;
+//extern RTC_HandleTypeDef hrtc;
+//extern RTC_TimeTypeDef sTime;
+//extern RTC_DateTypeDef sDate;
 extern uint8_t usbStatus;
 extern const uint8_t g_uprate ;
 //extern uint8_t usb_reconnect;
 
-// Dành cho adjust time hallet to utc
-Time utc_time={
-
-                .year=2014,
-                .month=11,
-                .day = 25,
-                .hour = 16,
-                .minute = 47,
-                .second = 30
-
-};
 uint8_t flag_sync_time = 0;
-extern Time adjust_time;
 // Dành cho ota
 /*size cho boot loader hien dang toi da la 0x5000 (20kb) bat dau tu 0x8000000-0x8005000
 
@@ -183,7 +172,7 @@ void info()
 	g_debugEnable =1;
 	debugPrint("M[%d] STM32 FW = %d ",HAL_GetTick()/1000, FW_VER);
 	debugPrint("M[%d] HW Version = %d ",HAL_GetTick()/1000, HW_VER);
-	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
+	debugPrint("M[%d] Hallet utc time = %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.day,g_time.hour,g_time.minute,g_time.second);
 	debugPrint("M[%d] front = %d rear = %d",HAL_GetTick()/1000,g_q.pnt_front,g_q.pnt_rear);
 	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	if(BSP_SD_Init()==MSD_OK) 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
@@ -328,32 +317,24 @@ void GeneralCmd()
 			char tmp[5];
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+7,4);
-			sDate.Year = atoi(tmp)-2000;
+			g_time.year = atoi(tmp);
 		    memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+11,2);
-			sDate.Month = atoi(tmp);
+			g_time.month = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+13,2);
-			sDate.Date = atoi(tmp);
+			g_time.day = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+15,2);
-			sTime.Hours = atoi(tmp);
+			g_time.hour = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+17,2);
-			sTime.Minutes = atoi(tmp);
+			g_time.minute = atoi(tmp);
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+19,2);
-			sTime.Seconds = atoi(tmp);
-			HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
-			HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-//			utc_time.year = yr;
-//			utc_time.month = month;
-//			utc_time.day = date;
-//			utc_time.hour = hr;
-//			utc_time.minute = min;
-//			utc_time.second = sec;
+			g_time.second = atoi(tmp);
 			g_debugEnable=1;
-			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,utc_time.year,utc_time.month,utc_time.day,utc_time.hour,utc_time.minute,utc_time.second);
+			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.day,g_time.hour,g_time.minute,g_time.second);
 			g_debugEnable=0;
 			g_forcesend=1;
 			flag_sync_time=1;

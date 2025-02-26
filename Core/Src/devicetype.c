@@ -13,10 +13,8 @@
 #include "time.h"
 
 uint32_t g_alive_tick=0;
-uint32_t g_hallet_tick=0;
 int16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
 uint16_t g_NbMessUp = 10;
-uint8_t g_regsupdate;
 uint16_t g_qpos; //Current param pointer in queque
 uint8_t upload_pnt; //current param upload
 uint8_t g_paramupdate=0;
@@ -25,13 +23,11 @@ float g_4V2;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
 uint8_t flag_handle_csv_done=0;
 const uint8_t g_uprate = 60;
+DWORD fre_clust = 0,fre_sect=0;
 
 extern uint8_t buffer[];
-extern Time hallet_time,utc_time,adjust_time;
-extern RTC_TimeTypeDef sTime;
-extern RTC_DateTypeDef sDate;
-extern RTC_HandleTypeDef hrtc;
-extern TimeDifference time_diff;
+extern Time hallet_time;
+extern Time g_time;
 extern uint8_t flag_sync_time;
 extern uint8_t flag_handle_csv;
 extern uint8_t g_forcesend;
@@ -39,7 +35,6 @@ extern uint8_t g_isMqttPublished;
 extern UART_HandleTypeDef huart1;
 extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
-extern DWORD fre_clust,fre_sect;
 
 const char *params[] = {
         "1", "2", "3", "4", "5", "6", "7", "8", "9",
@@ -113,7 +108,7 @@ void ReadFirstLineFromFile(const char* filename)
 	FRESULT res;
 	UINT br=0,bw=0;
 	FILINFO fno;
-	uint8_t line=0;
+	uint8_t line=0, handle_two_lines=0;
 	DIR dir;
 
 	memset(lineBuffer,0,sizeof(lineBuffer));
@@ -132,6 +127,7 @@ void ReadFirstLineFromFile(const char* filename)
     			memset(Last_line,0,sizeof(Last_line));
     			memcpy(Last_line,lineBuffer,sizeof(lineBuffer));
     		}
+    		if (line == 3) handle_two_lines=1;
 		}
 		f_close(&USERFile);
 		if (sscanf(filename, "%04d%02d%02d.CSV", &hallet_time.year, &hallet_time.month, &hallet_time.day)!=3)
@@ -146,16 +142,6 @@ void ReadFirstLineFromFile(const char* filename)
 		if (flag_sync_time==1 && g_isMqttPublished==1)
 		{
 		       flag_sync_time = 2;
-		       HAL_RTC_GetDate(&hrtc, &sDate,RTC_FORMAT_BIN);
-		       HAL_RTC_GetTime(&hrtc, &sTime,RTC_FORMAT_BIN);
-		       utc_time.day = sDate.Date;
-		       utc_time.hour= sTime.Hours;
-		       utc_time.minute = sTime.Minutes;
-		       utc_time.month = sDate.Month;
-		       utc_time.second= sTime.Seconds;
-		       utc_time.year = sDate.Year + 2000;
-		       if (line == 2 ) increaseTimeSeconds(&hallet_time,30);
-		       time_diff = calculate_time_difference(hallet_time, utc_time);
 		}
 		line=0;
 		memset(lineBuffer,0,sizeof(lineBuffer));
@@ -169,10 +155,17 @@ void ReadFirstLineFromFile(const char* filename)
 									ParseData(lineBuffer,DeviceRegs);
 									if (flag_handle_csv_done)
 									{
-
-										Hallet_RegsToParam(flag_handle_csv_done);
-//										if(line==2)
-										ParamQueueToMQTT();
+										if(handle_two_lines==1 && line == 2)
+										{
+											Hallet_RegsToParam(flag_handle_csv_done);
+											//	if(line==2)
+											ParamQueueToMQTT(decreaseTimeSeconds(g_time, 30));
+										}
+										else
+										{
+											Hallet_RegsToParam(flag_handle_csv_done);
+											ParamQueueToMQTT(g_time);
+										}
 //
 									}
 
@@ -277,7 +270,6 @@ void ParseData(const char* input,int16_t * Value) {
 	strncpy(buffer, input, sizeof(buffer));
 	if (sscanf(buffer, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
 		return;
-    adjust_time = add_time_difference(hallet_time, time_diff);
     // Bỏ qua phần "11:48:43" bằng cách tìm dấu phẩy đầu tiên
     char* dataStart = strchr(buffer, ',');
     if (dataStart == NULL)  return;
@@ -297,7 +289,7 @@ void ParseData(const char* input,int16_t * Value) {
 void Device_Handler()
 {
 	Hallet_Program();
-	ParamQueueToMQTT();
+	ParamQueueToMQTT(g_time);
 }
 
 Hallet_Program()
@@ -322,7 +314,6 @@ Hallet_Program()
 	}
 	if(flag_handle_csv ==1 && g_forcesend == 0 )
 	{
-//		g_hallet_tick = HAL_GetTick();
 		memset(DeviceRegs,0,sizeof(DeviceRegs));
 		FS_FileOperations();
 
@@ -418,23 +409,14 @@ void Hallet_RegsToParam(uint8_t sts)
 /*
  * Send Parameters Queue to MQTT server
  */
-void ParamQueueToMQTT() //Upload Param to MQTT or Save
+void ParamQueueToMQTT( Time time) //Upload Param to MQTT or Save
 {
 	if(g_paramupdate==1 && upload_pnt <= g_qpos && g_qpos>0)
 	{
 		char tmp[4];
 		uint32_t pos=0;
 		memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
-		if(flag_sync_time == 1 || flag_sync_time == 0 || g_forcesend == 1)
-		{
-			HAL_RTC_GetDate(&hrtc, &sDate,RTC_FORMAT_BIN);
-			HAL_RTC_GetTime(&hrtc, &sTime,RTC_FORMAT_BIN);
-			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,sDate.Year+2000,sDate.Month,sDate.Date,sTime.Hours,sTime.Minutes,sTime.Seconds);
-		}
-		if(flag_sync_time == 2 && g_forcesend==0)
-		{
-			sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,adjust_time.year,adjust_time.month,adjust_time.day,adjust_time.hour,adjust_time.minute,adjust_time.second);
-		}
+		sprintf(SendParameterstoMqtt,"@>%03d%%%04d%02d%02d%02d%02d%02d\t",pos,time.year,time.month,time.day,time.hour,time.minute,time.second);
 		pos = strlen(SendParameterstoMqtt);
 
 		while(pos<MQTT_BUFF_SIZE-15 && upload_pnt <= g_qpos)
@@ -449,7 +431,7 @@ void ParamQueueToMQTT() //Upload Param to MQTT or Save
 		SendParameterstoMqtt[3] = tmp[1];
 		SendParameterstoMqtt[4] = tmp[2];
 
-		if(g_forcesend == 1 ||flag_sync_time == 0)
+		if(g_forcesend == 1 || flag_sync_time == 0 || flag_sync_time == 1)
 		{
 			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 			g_forcesend =0;

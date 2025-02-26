@@ -19,20 +19,6 @@ typedef struct {
 	uint8_t second;
 } Time;
 
-typedef struct __attribute__((packed)) {
-    int16_t years;
-    int8_t months;
-    int8_t days;
-    int8_t hours;
-    int8_t minutes;
-    int8_t seconds;
-    uint16_t crc;
-} TimeDifference;
-
-
-TimeDifference calculate_time_difference(Time t1, Time t2);
-Time add_time_difference(Time base, TimeDifference diff);
-void increaseTimeSeconds(Time *t, uint8_t second_up);
-void load_time_difference(TimeDifference* diff);
+Time decreaseTimeSeconds(Time t, uint8_t second_down) ;
 
 #endif /* INC_TIME_H_ */
