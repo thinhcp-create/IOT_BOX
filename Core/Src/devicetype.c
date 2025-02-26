@@ -101,52 +101,33 @@ void FS_FileOperations()
 //uint8_t ramtoSD[1000];
 uint8_t ramtoSD[256];
 char lineBuffer[256];
-char Last_line[256];
 uint8_t *second_line;
 void ReadFirstLineFromFile(const char* filename)
 {
 	FRESULT res;
 	UINT br=0,bw=0;
 	FILINFO fno;
-	uint8_t line=0, handle_two_lines=0;
+	uint8_t line=0;
 	DIR dir;
 
 	memset(lineBuffer,0,sizeof(lineBuffer));
-	memset(Last_line,0,sizeof(Last_line));
 	memset(ramtoSD,0,256);
 
     // M? file CSV c?n d?c
     res = f_open(&USERFile, filename, FA_READ);
     if (res == FR_OK)
 	{
-    	while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL)
-		{
-    		line++;
-    		if(line >= 2)
-    		{
-    			memset(Last_line,0,sizeof(Last_line));
-    			memcpy(Last_line,lineBuffer,sizeof(lineBuffer));
-    		}
-    		if (line == 3) handle_two_lines=1;
-		}
-		f_close(&USERFile);
+
 		if (sscanf(filename, "%04d%02d%02d.CSV", &hallet_time.year, &hallet_time.month, &hallet_time.day)!=3)
 		{
 			return;
 		}
 
-		if (sscanf(Last_line, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
-		{
-			return;
-		}
 		if (flag_sync_time==1 && g_isMqttPublished==1)
 		{
 		       flag_sync_time = 2;
 		}
-		line=0;
-		memset(lineBuffer,0,sizeof(lineBuffer));
-		res = f_open(&USERFile, filename, FA_READ);
-		if (res == FR_OK) while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL)
+		while (f_gets(lineBuffer, sizeof(lineBuffer), &USERFile) != NULL)
 							{
 								line++;
 								if(line>=2)
@@ -155,7 +136,7 @@ void ReadFirstLineFromFile(const char* filename)
 									ParseData(lineBuffer,DeviceRegs);
 									if (flag_handle_csv_done)
 									{
-										if(handle_two_lines==1 && line == 2)
+										if(line == 2)
 										{
 											Hallet_RegsToParam(flag_handle_csv_done);
 											//	if(line==2)
