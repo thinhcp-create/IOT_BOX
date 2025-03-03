@@ -18,8 +18,8 @@ uint16_t g_NbMessUp = 10;
 uint16_t g_qpos; //Current param pointer in queque
 uint8_t upload_pnt; //current param upload
 uint8_t g_paramupdate=0;
-float g_24V;
-float g_4V2;
+uint32_t g_24V_mV;
+uint32_t g_4V2_mV;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
 uint8_t flag_handle_csv_done=0;
 const uint8_t g_uprate = 60;
@@ -35,7 +35,7 @@ extern uint8_t g_isMqttPublished;
 extern UART_HandleTypeDef huart1;
 extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
-
+extern uint8_t usbStatus;
 const char *params[] = {
         "1", "2", "3", "4", "5", "6", "7", "8", "9",
         "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
@@ -69,6 +69,7 @@ const char *params[] = {
     };
 void FS_FileOperations()
 {
+	mqtt_debug_send("FS_FileOperations\n");
 	flag_handle_csv=0;
 	flag_handle_csv_done=0;
 	DIR dir;
@@ -95,6 +96,7 @@ void FS_FileOperations()
 	res= f_closedir(&dir);
 	}
   }
+  mqtt_debug_send("End FS_FileOperations\n");
 }
 
 
@@ -104,6 +106,7 @@ char lineBuffer[256];
 uint8_t *second_line;
 void ReadFirstLineFromFile(const char* filename)
 {
+	mqtt_debug_send("ReadFirstLineFromFile\n");
 	FRESULT res;
 	UINT br=0,bw=0;
 	FILINFO fno;
@@ -160,6 +163,9 @@ void ReadFirstLineFromFile(const char* filename)
 			f_close(&USERFile);
 			f_unlink(filename);
 			res = f_mount(NULL, (TCHAR const*)USERPath, 1);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+			HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
+			// usbStatus=0;
 			SD_FATFS_Init();
 			res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
 			if(res == FR_OK)
@@ -215,7 +221,7 @@ void ReadFirstLineFromFile(const char* filename)
 						second_line = newline_pos + 2;
 					}
 					res = f_open(&SDFile, filename, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-				}else  res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+				} else  res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
 				f_lseek(&SDFile, f_size(&SDFile));
 				res = FR_DISK_ERR;
 //				mqtt_debug_send((char *)second_line);
@@ -239,14 +245,17 @@ void ReadFirstLineFromFile(const char* filename)
 
     memset(lineBuffer,0,sizeof(lineBuffer));
     memset(ramtoSD,0,256);
+
 //    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
 //    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
-    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-    HAL_Delay(500);
-    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 
+    HAL_Delay(500);
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+    HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
+    mqtt_data_send("End ReadFirstLineFromFile\n");
 }
 void ParseData(const char* input,int16_t * Value) {
+	mqtt_debug_send("ParseData\n");
 	char buffer[256];  // Tạo bản sao của chuỗi đầu vào
 	strncpy(buffer, input, sizeof(buffer));
 	if (sscanf(buffer, "%d:%d:%d,", &hallet_time.hour, &hallet_time.minute, &hallet_time.second)!=3)
@@ -295,6 +304,7 @@ Hallet_Program()
 	}
 	if(flag_handle_csv ==1 && g_forcesend == 0 )
 	{
+		// usbStatus=0;
 		memset(DeviceRegs,0,sizeof(DeviceRegs));
 		FS_FileOperations();
 
@@ -308,6 +318,7 @@ uint8_t getBit(unsigned int value, int index) {
 
 void Hallet_RegsToParam(uint8_t sts)
 {
+	mqtt_debug_send("Hallet_RegsToParam\n");
 	g_qpos=0;
 	upload_pnt=0;
 	flag_handle_csv_done = 0;
@@ -345,6 +356,12 @@ void Hallet_RegsToParam(uint8_t sts)
 
 
 	}
+	sprintf(g_param_queue[g_qpos].code,"VSRC");
+	sprintf(g_param_queue[g_qpos].value,"%d",g_24V_mV);
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"VBAT");
+	sprintf(g_param_queue[g_qpos].value,"%d",g_4V2_mV);
+	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"DI1");
 	sprintf(g_param_queue[g_qpos].value,"%01d",HAL_GPIO_ReadPin(DI1_GPIO_Port, DI1_Pin));
 	g_qpos++;
@@ -394,6 +411,7 @@ void ParamQueueToMQTT( Time time) //Upload Param to MQTT or Save
 {
 	if(g_paramupdate==1 && upload_pnt <= g_qpos && g_qpos>0)
 	{
+		mqtt_debug_send("ParamQueueToMQTT\n");
 		char tmp[4];
 		uint32_t pos=0;
 		memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
@@ -452,4 +470,3 @@ void ParamQueueToMQTT( Time time) //Upload Param to MQTT or Save
 
 				}
 }
-

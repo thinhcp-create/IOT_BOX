@@ -36,6 +36,10 @@
 
 extern uint8_t flag_handle_csv;
 extern uint8_t buffer[];
+extern uint32_t usbTick;
+extern uint8_t usbStatus;
+extern uint32_t g_24V_mV;
+extern uint32_t g_4V2_mV;
 //uint8_t usb_reconnect=0;
 char g_rx1_char;
 uint8_t g_debugEnable=0;
@@ -48,12 +52,12 @@ Time hallet_time={
                 .minute = 47,
                 .second = 30
         };
-extern uint8_t flag_sync_time;
 uint32_t g_NbSector;
 uint8_t g_forcesend=0;
 uint8_t g_isMqttPublished=0;
 uint32_t g_espcomm_tick=0;
 uint32_t g_device_tick=0;
+uint32_t g_adc_tick=0;
 LIFO_inst g_q;
 uint32_t SD_DATA_SECTOR_BEGIN =0;
 uint32_t SD_DATA_SECTOR_END =0;
@@ -83,6 +87,9 @@ char g_rx1_buffer[MAX_BUFFER_UART1];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
+
 CRC_HandleTypeDef hcrc;
 
 SD_HandleTypeDef hsd;
@@ -104,6 +111,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_SDIO_SD_Init(void);
 static void MX_CRC_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
 Time g_time ={0};
 uint16_t g_sec_flag =0;
@@ -237,9 +246,11 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_CRC_Init();
   MX_TIM3_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-  htim3.Instance->CCR4 = 200;
+  htim3.Instance->CCR4 = 1000;
   LoadPointer(&g_q);
   EspComm_init();
   if(BSP_SD_Init()==MSD_OK)
@@ -256,12 +267,18 @@ int main(void)
   RAM_FATFS_Init();
 // Để hallet nhận diện lại mạch là usb vì lúc boot mạch đã nhận diện được mạch ko là usb và sẽ ko refresh
   HAL_PCD_MspDeInit(&hUsbDeviceFS);
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
   HAL_Delay(500);
   MX_USB_DEVICE_Init();
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
-  HAL_Delay(500);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
+  HAL_Delay(500);
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
+  HAL_ADCEx_Calibration_Start(&hadc1);
+  HAL_ADCEx_Calibration_Start(&hadc2);
+  VoltMeasure();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -277,12 +294,30 @@ int main(void)
 	  {
 
 		  Device_Handler();
-		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)
-			  {
-			  	  //cần xử lý lại cho mượt tránh ảnh hưởng đến kết thúc ota
-			  	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
-			  }
+//		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)
+//			  {
+//			  	  //cần xử lý lại cho mượt tránh ảnh hưởng đến kết thúc ota
+//			  	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+//			  }
 		  g_device_tick = HAL_GetTick();
+		  // Reset usb khi mất kết nối 60s
+		  if(HAL_GetTick()-usbTick > 60000 && usbStatus == 1)
+		  {
+			  mqtt_debug_send("Usb reset\n");
+			  usbTick = HAL_GetTick();
+			  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+			  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
+			  HAL_PCD_MspDeInit(&hUsbDeviceFS);
+			  MX_USB_DEVICE_Init();
+			  HAL_Delay(1000);
+			  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+			  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
+		  }
+	  }
+	  if(HAL_GetTick()-g_adc_tick>3000)
+	  {
+		  VoltMeasure();
+		  g_adc_tick = HAL_GetTick();
 	  }
 
     /* USER CODE END WHILE */
@@ -331,12 +366,107 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC|RCC_PERIPHCLK_USB;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_14;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief ADC2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC2_Init(void)
+{
+
+  /* USER CODE BEGIN ADC2_Init 0 */
+
+  /* USER CODE END ADC2_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC2_Init 1 */
+
+  /* USER CODE END ADC2_Init 1 */
+
+  /** Common config
+  */
+  hadc2.Instance = ADC2;
+  hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc2.Init.NbrOfConversion = 1;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_15;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC2_Init 2 */
+
+  /* USER CODE END ADC2_Init 2 */
+
 }
 
 /**
@@ -520,10 +650,13 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(PW_USB_GPIO_Port, PW_USB_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
@@ -534,6 +667,13 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
                           |DO4_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PW_USB_Pin */
+  GPIO_InitStruct.Pin = PW_USB_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(PW_USB_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : DI4_Pin DI3_Pin DI2_Pin DI1_Pin */
   GPIO_InitStruct.Pin = DI4_Pin|DI3_Pin|DI2_Pin|DI1_Pin;
@@ -562,6 +702,29 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void VoltMeasure()
+{
+	uint32_t ADC_24V;
+	uint32_t ADC_4V2;
+	HAL_ADC_Start(&hadc1);
+	// Chờ quá trình chuyển đổi hoàn thành (Timeout = 10ms)
+	if (HAL_ADC_PollForConversion(&hadc1,200) == HAL_OK) {
+	    // Đọc giá trị ADC
+		ADC_4V2 = HAL_ADC_GetValue(&hadc1);
+		g_4V2_mV = ((uint32_t)ADC_4V2 * 3300 * 2 + 2048) / 4096;
+	}
+	else mqtt_debug_send("Adc 4v2 error\n");
+	HAL_ADC_Stop(&hadc1);
+	HAL_ADC_Start(&hadc2);
+	if (HAL_ADC_PollForConversion(&hadc2,200) == HAL_OK) {
+		    // Đọc giá trị ADC
+		ADC_24V = HAL_ADC_GetValue(&hadc2);
+		g_24V_mV = ((uint32_t)ADC_24V * 3300 * 11 + 2048) / 4096;
+	}
+	else mqtt_debug_send("Adc 24v error\n");
+	HAL_ADC_Stop(&hadc2);
+
+}
 /* USER CODE END 4 */
 
 /**

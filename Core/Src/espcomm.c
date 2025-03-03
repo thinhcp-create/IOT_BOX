@@ -176,6 +176,7 @@ void info()
 	else 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, "SD card not available");
 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, usbStatus ? "usb connected" : "usb not connected");
 //	TestFlash();
+//	usbStatus=0;
 	g_debugEnable =0;
 }
 
@@ -509,7 +510,8 @@ void GeneralCmd()
 		// Dành cho ota thiết bị hallet uv
 		else if(strncmp(g_rx1_buffer+i,"c:hvbegin:",10)==0)
 		{
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
+			HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
 			g_debugEnable = 1;
 			fwUpdateInfo.firmwareSize = atoi(g_rx1_buffer+i+10);
 			fwUpdateInfo.isNeedUpdateFirmware=0;

@@ -103,6 +103,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define PW_USB_Pin GPIO_PIN_13
+#define PW_USB_GPIO_Port GPIOC
 #define DI4_Pin GPIO_PIN_0
 #define DI4_GPIO_Port GPIOC
 #define DI3_Pin GPIO_PIN_1
@@ -121,6 +123,10 @@ void Error_Handler(void);
 #define RS485_RX_GPIO_Port GPIOA
 #define RST_WIFI_Pin GPIO_PIN_4
 #define RST_WIFI_GPIO_Port GPIOA
+#define ADC_4V2_Pin GPIO_PIN_4
+#define ADC_4V2_GPIO_Port GPIOC
+#define ADC_24V_Pin GPIO_PIN_5
+#define ADC_24V_GPIO_Port GPIOC
 #define LED_Pin GPIO_PIN_0
 #define LED_GPIO_Port GPIOB
 #define DO1_Pin GPIO_PIN_12
