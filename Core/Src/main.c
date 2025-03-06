@@ -708,7 +708,7 @@ void VoltMeasure()
 	uint32_t ADC_4V2;
 	HAL_ADC_Start(&hadc1);
 	// Chờ quá trình chuyển đổi hoàn thành (Timeout = 10ms)
-	if (HAL_ADC_PollForConversion(&hadc1,200) == HAL_OK) {
+	if (HAL_ADC_PollForConversion(&hadc1,10) == HAL_OK) {
 	    // Đọc giá trị ADC
 		ADC_4V2 = HAL_ADC_GetValue(&hadc1);
 		g_4V2_mV = ((uint32_t)ADC_4V2 * 3300 * 2 + 2048) / 4096;
@@ -716,7 +716,7 @@ void VoltMeasure()
 	else mqtt_debug_send("Adc 4v2 error\n");
 	HAL_ADC_Stop(&hadc1);
 	HAL_ADC_Start(&hadc2);
-	if (HAL_ADC_PollForConversion(&hadc2,200) == HAL_OK) {
+	if (HAL_ADC_PollForConversion(&hadc2,10) == HAL_OK) {
 		    // Đọc giá trị ADC
 		ADC_24V = HAL_ADC_GetValue(&hadc2);
 		g_24V_mV = ((uint32_t)ADC_24V * 3300 * 11 + 2048) / 4096;

@@ -32,6 +32,7 @@ extern LIFO_inst g_q;
 extern Time g_time;
 extern uint8_t usbStatus;
 extern const uint8_t g_uprate ;
+extern uint16_t g_DeviceType;
 //extern uint8_t usb_reconnect;
 
 uint8_t flag_sync_time = 0;
@@ -136,21 +137,25 @@ void debugPrint(const char *fmt, ...)
 		HAL_UART_Transmit(&huart1,(uint8_t*)buff2,strlen(buff2),1000);
 	 }
 }
-void mqtt_data_send(char* data)
-{
-//	char info[256]={0};
-//	sprintf(info,"%s:%ld\t%s:%d\t%s:%d\t%s:%d\t","MCUU",HAL_GetTick()/1000,"TYPE",TYPE,"MFW",FW_VER,"HW",HW_VER);
-//	strcat(data,info);
-//	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
-//	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
-//	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
-
-}
+//void mqtt_data_send(char* data)
+//{
+////	char info[256]={0};
+////	sprintf(info,"%s:%ld\t%s:%d\t%s:%d\t%s:%d\t","MCUU",HAL_GetTick()/1000,"TYPE",TYPE,"MFW",FW_VER,"HW",HW_VER);
+////	strcat(data,info);
+////	memset(SendParameterstoMqtt,0,sizeof(SendParameterstoMqtt));
+////	sprintf(SendParameterstoMqtt,"@>%03d%%%s\t",strlen(data)+1,data);
+////	HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),100);
+//
+//}
 void mqtt_debug_send(char* data)
 {
-	memset(SendDebugtoMqtt,0,sizeof(SendDebugtoMqtt));
-	sprintf(SendDebugtoMqtt,"@>%03d%s ",strlen(data),data);
-	HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),1000);
+	if(g_debugEnable)
+	{
+		memset(SendDebugtoMqtt,0,sizeof(SendDebugtoMqtt));
+		sprintf(SendDebugtoMqtt,"@>%03d%s ",strlen(data),data);
+		HAL_UART_Transmit(&huart1,(uint8_t*)SendDebugtoMqtt,strlen(SendDebugtoMqtt),1000);
+	}
+	
 }
 void mqtt_saved_data_send(char* data)
 {
@@ -175,8 +180,6 @@ void info()
 	if(BSP_SD_Init()==MSD_OK) 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
 	else 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, "SD card not available");
 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, usbStatus ? "usb connected" : "usb not connected");
-//	TestFlash();
-//	usbStatus=0;
 	g_debugEnable =0;
 }
 
@@ -331,9 +334,9 @@ void GeneralCmd()
 			memset(tmp,0,sizeof(tmp));
 			memcpy(tmp,g_rx1_buffer+i+19,2);
 			g_time.second = atoi(tmp);
-			g_debugEnable=1;
-			debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.day,g_time.hour,g_time.minute,g_time.second);
-			g_debugEnable=0;
+			// g_debugEnable=1;
+			// debugPrint("M[%d] RTC - Saved sync time: %04d/%02d/%02d %02d:%02d:%02d",HAL_GetTick()/1000,g_time.year,g_time.month,g_time.day,g_time.hour,g_time.minute,g_time.second);
+			// g_debugEnable=0;
 			g_forcesend=1;
 			flag_sync_time=1;
 		}
@@ -355,12 +358,10 @@ void GeneralCmd()
 			g_forcesend =1;
 			debugPrint("M[%d] Force Send = %d",HAL_GetTick()/1000,g_forcesend);
 		}
-//		else if(strncmp(g_rx1_buffer+i,"c:appinit:",10)==0)
-//		{
-//			g_BLT_state =0;
-//			g_DeviceType = atoi(g_rx1_buffer+i+10);
-//			SaveDeviceInfo();
-//		}
+		else if(strncmp(g_rx1_buffer+i,"c:type:",7)==0)
+		{
+			g_DeviceType = atoi(g_rx1_buffer+i+7);
+		}
 		else if(strncmp(g_rx1_buffer+i,"c:dben:",7)==0)
 		{
 			g_debugEnable = atoi(g_rx1_buffer+i+7);
@@ -510,6 +511,8 @@ void GeneralCmd()
 		// Dành cho ota thiết bị hallet uv
 		else if(strncmp(g_rx1_buffer+i,"c:hvbegin:",10)==0)
 		{
+			if(atoi(g_rx1_buffer+i+10)<=108*1024)
+			{
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 			HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
 			g_debugEnable = 1;
@@ -521,6 +524,7 @@ void GeneralCmd()
 			crc32_firmwave=0;
 			memset(data_ota,0xFF,2048);
 			HAL_UART_Transmit(&huart1,(uint8_t *)"ok",2,100);
+			}
 		}
 		else if(strncmp(g_rx1_buffer+i,"c:hvend:",8)==0)
 		{

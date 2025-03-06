@@ -31,7 +31,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  38
+#define STORAGE_BLK_NBR                  40
 #define STORAGE_BLK_SIZ                  0x200
 
 

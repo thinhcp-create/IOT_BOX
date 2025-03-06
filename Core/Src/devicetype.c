@@ -20,6 +20,7 @@ uint8_t upload_pnt; //current param upload
 uint8_t g_paramupdate=0;
 uint32_t g_24V_mV;
 uint32_t g_4V2_mV;
+uint16_t g_DeviceType = TYPE;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
 uint8_t flag_handle_csv_done=0;
 const uint8_t g_uprate = 60;
@@ -36,37 +37,8 @@ extern UART_HandleTypeDef huart1;
 extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
 extern uint8_t usbStatus;
-const char *params[] = {
-        "1", "2", "3", "4", "5", "6", "7", "8", "9",
-        "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
-        "20", "21", "22", "23", "24", "25", "26", "27", "28",
-        "29", "30", "31", "32"
-    };
-    const char *alarms[] ={
-    		  "A1",
-    		  "A2",
-    		  "A3",
-			  "A4",
-    		  "Not_Used_0"	,
-    		  "A6",
-    		  "A7",
-    		  "A8",
-    		  "A9",
-			  "A10",
-			  "A11"
-    };
-    const char *warns[] = {
-    	  "W1",             // Warning 1
-          "Not_Used_1",        //         2 --- Not Used
-          "W3",             //         5
-          "W4",             //         6
-          "W5",
-		  "W6",
-		  "W7",
-          "Not_Used_2",     //         8 --- Not Used
-		  "W9",
-		  "W10"
-    };
+uint8_t param_quantity=32;
+
 void FS_FileOperations()
 {
 	mqtt_debug_send("FS_FileOperations\n");
@@ -246,13 +218,13 @@ void ReadFirstLineFromFile(const char* filename)
     memset(lineBuffer,0,sizeof(lineBuffer));
     memset(ramtoSD,0,256);
 
-//    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
-//    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
+    memset(buffer,0,STORAGE_BLK_SIZ*STORAGE_BLK_NBR);
+    create_fat12_disk(buffer,STORAGE_BLK_SIZ,STORAGE_BLK_NBR );
 
     HAL_Delay(500);
     HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
     HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
-    mqtt_data_send("End ReadFirstLineFromFile\n");
+    mqtt_debug_send("End ReadFirstLineFromFile\n");
 }
 void ParseData(const char* input,int16_t * Value) {
 	mqtt_debug_send("ParseData\n");
@@ -273,6 +245,7 @@ void ParseData(const char* input,int16_t * Value) {
         index++;
         token = strtok(NULL, ","); // Lấy token tiếp theo
     }
+    param_quantity = index-1;
     flag_handle_csv_done = 1;
 }
 
@@ -289,6 +262,7 @@ Hallet_Program()
 		if((HAL_GetTick()-g_alive_tick) > ESP_FORCESEND_PERIOD || g_forcesend == 1)
 		{
 			g_alive_tick = HAL_GetTick();
+			VoltMeasure();
 			Hallet_RegsToParam(0);
 			g_forcesend = 1;
 		}
@@ -298,6 +272,7 @@ Hallet_Program()
 		if((HAL_GetTick()-g_alive_tick) > KEEP_ALIVE_PERIOD || g_forcesend == 1)
 		{
 			g_alive_tick = HAL_GetTick();
+			VoltMeasure();
 			Hallet_RegsToParam(0);
 			g_forcesend = 1;
 		}
@@ -306,14 +281,9 @@ Hallet_Program()
 	{
 		// usbStatus=0;
 		memset(DeviceRegs,0,sizeof(DeviceRegs));
+		VoltMeasure();
 		FS_FileOperations();
-
 	}
-}
-
-uint8_t getBit(unsigned int value, int index) {
-    // Kiểm tra bit tại vị trí index và trả v�? chuỗi tương ứng
-    return ((value >> index) & 1) ? 1 : 0;
 }
 
 void Hallet_RegsToParam(uint8_t sts)
@@ -322,40 +292,19 @@ void Hallet_RegsToParam(uint8_t sts)
 	g_qpos=0;
 	upload_pnt=0;
 	flag_handle_csv_done = 0;
-	uint16_t alarm=0,warn=0;
 	if(sts)
 	{
-		for(uint8_t i=0; i<sizeof(params)/sizeof(params[0]); i++)
+		for(uint8_t i=0; i<param_quantity; i++)
 		{
-			sprintf(g_param_queue[i].code,"%s",params[i]);
+			sprintf(g_param_queue[i].code,"%d",i+1);
 			sprintf(g_param_queue[i].value,"%d",DeviceRegs[i]);
-			if (strcmp(params[i],"13")==0) alarm = DeviceRegs[i];
-			if (strcmp(params[i],"14")==0) warn = DeviceRegs[i];
 			g_qpos++;
 		}
-		for(uint8_t i=0; i<sizeof(alarms)/sizeof(alarms[0]); i++)
-		{
-			if(strcmp(alarms[i],"Not_Used_0")!=0)
-			{
-				sprintf(g_param_queue[g_qpos].code,"%s",alarms[i]);
-				sprintf(g_param_queue[g_qpos].value,"%d",getBit(alarm, i));
-				g_qpos++;
-			}
-
-		}
-		for(uint8_t i=0; i<sizeof(warns)/sizeof(warns[0]); i++)
-		{
-			if(strcmp(warns[i],"Not_Used_1")!=0 && strcmp(warns[i],"Not_Used_2")!=0 )
-			{
-				sprintf(g_param_queue[g_qpos].code,"%s",warns[i]);
-				sprintf(g_param_queue[g_qpos].value,"%d",getBit(warn, i));
-				g_qpos++;
-			}
-
-		}
-
 
 	}
+	sprintf(g_param_queue[g_qpos].code,"MBCF");
+	sprintf(g_param_queue[g_qpos].value,"%01d",1);
+	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"VSRC");
 	sprintf(g_param_queue[g_qpos].value,"%d",g_24V_mV);
 	g_qpos++;
@@ -390,7 +339,7 @@ void Hallet_RegsToParam(uint8_t sts)
 	sprintf(g_param_queue[g_qpos].value,"%d",(HAL_GetTick()/1000));
 	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"TYPE");
-	sprintf(g_param_queue[g_qpos].value,"%d",TYPE);
+	sprintf(g_param_queue[g_qpos].value,"%d",g_DeviceType);
 	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"MFW");
 	sprintf(g_param_queue[g_qpos].value,"%d",FW_VER);
