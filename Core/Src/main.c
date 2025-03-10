@@ -72,6 +72,7 @@ volatile uint8_t SCI1_rxdone=0;
 uint16_t g_rx1_cnt;
 uint8_t cntTimeRev1;
 char g_rx1_buffer[MAX_BUFFER_UART1];
+uint8_t usb_retry=0;
 //RTC_TimeTypeDef sTime = {0};
 //RTC_DateTypeDef sDate={0};
 /* USER CODE END PTD */
@@ -305,6 +306,8 @@ int main(void)
 		  {
 			  mqtt_debug_send("Usb reset\n");
 			  usbTick = HAL_GetTick();
+			  usb_retry ++;
+			  if(usb_retry>=6) HAL_NVIC_SystemReset();
 			  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,1);
 			  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,0);
 			  HAL_PCD_MspDeInit(&hUsbDeviceFS);
@@ -312,6 +315,7 @@ int main(void)
 			  HAL_Delay(1000);
 			  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
 			  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
+
 		  }
 	  }
 	  if(HAL_GetTick()-g_adc_tick>3000)

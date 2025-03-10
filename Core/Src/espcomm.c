@@ -31,6 +31,7 @@ extern SD_HandleTypeDef hsd;
 extern LIFO_inst g_q;
 extern Time g_time;
 extern uint8_t usbStatus;
+extern uint8_t usb_retry;
 extern const uint8_t g_uprate ;
 extern uint16_t g_DeviceType;
 //extern uint8_t usb_reconnect;
@@ -179,7 +180,7 @@ void info()
 	debugPrint("M[%d] Upload Rate = %d ",HAL_GetTick()/1000, g_uprate);
 	if(BSP_SD_Init()==MSD_OK) 	debugPrint("M[%d] SD sectors = %d ",HAL_GetTick()/1000, hsd.SdCard.BlockNbr);
 	else 	debugPrint("M[%d] %s ",HAL_GetTick()/1000, "SD card not available");
-	debugPrint("M[%d] %s ",HAL_GetTick()/1000, usbStatus ? "usb connected" : "usb not connected");
+	debugPrint("M[%d] %s ",HAL_GetTick()/1000, (usbStatus && usb_retry==0)? "usb connected" : "usb not connected");
 	g_debugEnable =0;
 }
 

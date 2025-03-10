@@ -72,6 +72,7 @@ uint8_t write_flag = 0,flag_handle_csv=0;
 uint64_t write_time=0;
 uint8_t usbStatus=0;
 uint32_t usbTick=0;
+extern uint8_t usb_retry;
 /* USER CODE END PRIVATE_DEFINES */
 
 /**
@@ -216,6 +217,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 	}
 	usbStatus=1;
 	usbTick = HAL_GetTick();
+	usb_retry=0;
 	return (USBD_OK);
   /* USER CODE END 4 */
 }

@@ -37,6 +37,7 @@ extern UART_HandleTypeDef huart1;
 extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
 extern uint8_t usbStatus;
+extern uint8_t usb_retry;
 uint8_t param_quantity=32;
 
 void FS_FileOperations()
@@ -349,7 +350,9 @@ void Hallet_RegsToParam(uint8_t sts)
 	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"UPR");
 	sprintf(g_param_queue[g_qpos].value,"%d",g_uprate);
-
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"USB");
+	sprintf(g_param_queue[g_qpos].value,"%01d",(usbStatus && usb_retry==0)?1:0);
 	g_paramupdate=1;
 }
 
