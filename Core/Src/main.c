@@ -205,6 +205,7 @@ uint32_t calculate_crc32(const void *data, size_t length) {
     return crc ^ 0xFFFFFFFF; // XOR với 0xFFFFFFFF để lấy kết quả cuối
 }
 extern USBD_HandleTypeDef hUsbDeviceFS;
+extern DWORD fre_clust,fre_sect;
 /* USER CODE END 0 */
 
 /**
@@ -260,6 +261,17 @@ int main(void)
 	 g_NbSector = hsd.SdCard.BlockNbr;
 	 SD_DATA_SECTOR_END = g_NbSector;
 	 SD_DATA_SECTOR_BEGIN = g_NbSector - 1024*1024;
+	 SD_FATFS_Init();
+	 FRESULT res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
+	 if(res == FR_OK)
+	 {
+		 FRESULT res = f_getfree((TCHAR const*)SDPath, &fre_clust, &SDFatFS);
+	 	if (res == FR_OK)
+	 	{
+	 	// Tính toán thông tin dung lượng
+	 	fre_sect = fre_clust * SDFatFS.csize;          // Số sector còn trống
+	 	}
+	 }
   }
   else
   {
@@ -371,7 +383,7 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC|RCC_PERIPHCLK_USB;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {

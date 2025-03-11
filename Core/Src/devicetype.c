@@ -20,7 +20,7 @@ uint8_t upload_pnt; //current param upload
 uint8_t g_paramupdate=0;
 uint32_t g_24V_mV;
 uint32_t g_4V2_mV;
-uint16_t g_DeviceType = TYPE;
+uint16_t g_DeviceType = 10030;
 param_value g_param_queue[PARAMETER_QUEUE_SIZE];
 uint8_t flag_handle_csv_done=0;
 const uint8_t g_uprate = 60;
@@ -239,7 +239,7 @@ void ParseData(const char* input,int16_t * Value) {
     dataStart++; // Di chuyển qua dấu phẩy để bắt đầu từ số đầu tiên sau thời gian
     // Tách các số theo dấu phẩy
     char* token = strtok(dataStart, ",");
-    int index = 0;
+    uint8_t index = 0;
 
     while (token != NULL) {
         Value[index] = atoi(token); // Chuyển token thành số nguyên
@@ -353,6 +353,9 @@ void Hallet_RegsToParam(uint8_t sts)
 	g_qpos++;
 	sprintf(g_param_queue[g_qpos].code,"USB");
 	sprintf(g_param_queue[g_qpos].value,"%01d",(usbStatus && usb_retry==0)?1:0);
+	g_qpos++;
+	sprintf(g_param_queue[g_qpos].code,"SD");
+	sprintf(g_param_queue[g_qpos].value,"%d",fre_sect/2);
 	g_paramupdate=1;
 }
 
