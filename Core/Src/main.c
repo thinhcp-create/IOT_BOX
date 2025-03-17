@@ -329,6 +329,9 @@ int main(void)
 			  HAL_GPIO_WritePin(PW_USB_GPIO_Port,PW_USB_Pin,1);
 
 		  }
+		  else if(HAL_GetTick()-usbTick < 60000 && usbStatus == 1 && usb_retry==0){
+			  BlinkLed(1);
+		  }
 	  }
 	  if(HAL_GetTick()-g_adc_tick>3000)
 	  {
@@ -675,10 +678,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(PW_USB_GPIO_Port, PW_USB_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RS485_DE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, USB_PWR_EN_Pin|RST_WIFI_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(RST_WIFI_GPIO_Port, RST_WIFI_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LED_Pin|DO1_Pin|DO2_Pin|DO3_Pin
@@ -740,6 +743,15 @@ void VoltMeasure()
 	else mqtt_debug_send("Adc 24v error\n");
 	HAL_ADC_Stop(&hadc2);
 
+}
+void BlinkLed(uint8_t blink_time)
+{
+	static uint32_t blink_tick =0;
+	if(HAL_GetTick() - blink_tick > blink_time*1000 )
+	{
+		blink_tick= HAL_GetTick();
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	}
 }
 /* USER CODE END 4 */
 
