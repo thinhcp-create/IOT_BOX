@@ -38,6 +38,8 @@ extern char SendParameterstoMqtt[MQTT_BUFF_SIZE];
 extern LIFO_inst g_q;
 extern uint8_t usbStatus;
 extern uint8_t usb_retry;
+extern uint32_t SD_DATA_SECTOR_BEGIN ;
+extern uint32_t SD_DATA_SECTOR_END ;
 uint8_t param_quantity=32;
 
 void FS_FileOperations()
@@ -128,6 +130,7 @@ void ReadFirstLineFromFile(const char* filename)
 
 								}
 							}
+//		g_isMqttPublished=0;
 		f_close(&USERFile);
 		res = f_open(&USERFile, filename, FA_READ);
 		if (res == FR_OK)
@@ -150,7 +153,7 @@ void ReadFirstLineFromFile(const char* filename)
 //				    tot_sect = (SDFatFS.n_fatent - 2) * SDFatFS.csize;   // Tổng số sector
 				    fre_sect = fre_clust * SDFatFS.csize;          // Số sector còn trống
 				    // khi fre <= 200*100 thì xóa file cũ nhất
-				    if(fre_sect <= 200*100)
+				    if(fre_sect <= SD_DATA_SECTOR_END-SD_DATA_SECTOR_BEGIN+100)
 				    {
 				    	res = f_opendir(&dir, (TCHAR const*)SDPath);
 				    	if (res == FR_OK)
@@ -389,6 +392,7 @@ void ParamQueueToMQTT( Time time) //Upload Param to MQTT or Save
 		{
 			HAL_UART_Transmit(&huart1,(uint8_t*)SendParameterstoMqtt,strlen(SendParameterstoMqtt),1000);
 			g_forcesend =0;
+			g_isMqttPublished=0;
 		}
 		else
 		{

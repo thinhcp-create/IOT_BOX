@@ -38,18 +38,67 @@ uint8_t QueueIsFull(LIFO_inst *q)
 void SavePointer(LIFO_inst* q)
 {
 	//Save pointer to internal Flash
-	q->crc = q->pnt_rear - q->pnt_front;
-	Flash_Write_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,3);
+	if(BSP_SD_Init()==MSD_OK)
+	{
+		q->crc = HAL_CRC_Calculate(&hcrc, (uint32_t* )q,2);
+		if (SD_DATA_SECTOR_BEGIN>=1 && hsd.SdCard.BlockSize > 0)
+		{
+			uint8_t* temp = malloc(hsd.SdCard.BlockSize);
+			memset(temp, 0, hsd.SdCard.BlockSize);
+			memcpy(temp, q, sizeof(LIFO_inst));
+			HAL_SD_WriteBlocks(&hsd, (uint8_t*)temp,SD_DATA_SECTOR_BEGIN-1,1, 2000);
+			HAL_SD_WriteBlocks(&hsd, (uint8_t*)temp,SD_DATA_SECTOR_BEGIN-2,1, 2000);
+			memset(temp, 0, hsd.SdCard.BlockSize);
+			free(temp);
+		}
+	}
+//	q->crc = q->pnt_rear - q->pnt_front;
+//	Flash_Write_Data(IFLASH_ADD_PNT_FRONT,(uint32_t *)q,3);
 }
 void LoadPointer(LIFO_inst* q)
 {
-	memcpy((void*)q, (void*)IFLASH_ADD_PNT_FRONT, sizeof(q)*3);
-	if((q->pnt_rear - q->pnt_front) !=  q->crc || q->pnt_front < 0 )
+	if(BSP_SD_Init()==MSD_OK && SD_DATA_SECTOR_BEGIN>=1)
 	{
-		q->pnt_front=0;
-		q->pnt_rear=0;
-		q->crc = 0;
+		if (SD_DATA_SECTOR_BEGIN>=2 && hsd.SdCard.BlockSize > 0)
+		{
+			uint8_t* temp = malloc(hsd.SdCard.BlockSize);
+			memset(temp, 0, hsd.SdCard.BlockSize);
+			HAL_SD_ReadBlocks(&hsd, (uint8_t*)temp,SD_DATA_SECTOR_BEGIN-1,1,1000);
+			memcpy((void*)q, (void*)temp, sizeof(q)*3);
+			if( HAL_CRC_Calculate(&hcrc, (uint32_t* )q,2) !=  q->crc || q->pnt_front < 0 )
+			{
+				memset(temp, 0, hsd.SdCard.BlockSize);
+				HAL_SD_ReadBlocks(&hsd, (uint8_t*)temp,SD_DATA_SECTOR_BEGIN-2,1,1000);
+				memcpy((void*)q, (void*)temp, sizeof(q)*3);
+				if( HAL_CRC_Calculate(&hcrc, (uint32_t* )q,2) !=  q->crc || q->pnt_front < 0 )
+				{
+						q->pnt_front=0;
+						q->pnt_rear=0;
+						q->crc = 0;
+				}
+			}
+			memset(temp, 0, hsd.SdCard.BlockSize);
+			free(temp);
+		}
+
+//		HAL_SD_ReadBlocks(&hsd, (uint8_t*)&q,SD_DATA_SECTOR_BEGIN-1,1,1000);
+//		if( HAL_CRC_Calculate(&hcrc, (uint32_t* )q,2) !=  q->crc || q->pnt_front < 0 )
+//		{
+//			q->pnt_front=0;
+//			q->pnt_rear=0;
+//			q->crc = 0;
+//		}
+//		q->crc = HAL_CRC_Calculate(&hcrc, (uint32_t* )&q,2);
+//		if (SD_DATA_SECTOR_BEGIN>=1)
+//		HAL_SD_WriteBlocks(&hsd, (uint8_t*)&q,SD_DATA_SECTOR_BEGIN-1,1, 2000);
 	}
+//	memcpy((void*)q, (void*)IFLASH_ADD_PNT_FRONT, sizeof(q)*3);
+//	if((q->pnt_rear - q->pnt_front) !=  q->crc || q->pnt_front < 0 )
+//	{
+//		q->pnt_front=0;
+//		q->pnt_rear=0;
+//		q->crc = 0;
+//	}
 }
 void SaveData(LIFO_inst *q, char * data)
 {

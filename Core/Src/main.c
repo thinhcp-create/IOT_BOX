@@ -253,14 +253,16 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
   htim3.Instance->CCR4 = 1000;
-  LoadPointer(&g_q);
   EspComm_init();
   if(BSP_SD_Init()==MSD_OK)
   {
 	 mqtt_debug_send("SD card available\n");
 	 g_NbSector = hsd.SdCard.BlockNbr;
 	 SD_DATA_SECTOR_END = g_NbSector;
-	 SD_DATA_SECTOR_BEGIN = g_NbSector - 1024*1024;
+	 if (g_NbSector >3*1024*1024)
+		 SD_DATA_SECTOR_BEGIN = g_NbSector - 1024*1024;
+	 else
+		 SD_DATA_SECTOR_BEGIN = g_NbSector * 0.7;
 	 SD_FATFS_Init();
 	 FRESULT res =  f_mount(&SDFatFS, (TCHAR const*)SDPath,1);
 	 if(res == FR_OK)
@@ -278,6 +280,7 @@ int main(void)
 	 mqtt_debug_send("SD card not available\n");
   }
   RAM_FATFS_Init();
+  LoadPointer(&g_q);
 // Để hallet nhận diện lại mạch là usb vì lúc boot mạch đã nhận diện được mạch ko là usb và sẽ ko refresh
   HAL_PCD_MspDeInit(&hUsbDeviceFS);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin,0);
