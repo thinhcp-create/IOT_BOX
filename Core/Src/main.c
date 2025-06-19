@@ -93,6 +93,8 @@ ADC_HandleTypeDef hadc2;
 
 CRC_HandleTypeDef hcrc;
 
+IWDG_HandleTypeDef hiwdg;
+
 SD_HandleTypeDef hsd;
 
 TIM_HandleTypeDef htim3;
@@ -114,6 +116,7 @@ static void MX_CRC_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_ADC2_Init(void);
+static void MX_IWDG_Init(void);
 /* USER CODE BEGIN PFP */
 Time g_time ={0};
 uint16_t g_sec_flag =0;
@@ -250,6 +253,7 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
   htim3.Instance->CCR4 = 1000;
@@ -301,14 +305,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  HAL_IWDG_Refresh(&hiwdg);
 	  if(HAL_GetTick()-g_espcomm_tick>ESP_COMM_PERIOD)
 	  {
+		  HAL_IWDG_Refresh(&hiwdg);
 		  EspCmdHandler();
 		  g_espcomm_tick = HAL_GetTick();
 	  }
 	  if((HAL_GetTick()-g_device_tick>DEVICE_HANDLER_PERIOD) && (g_ota==0||Timer_frame_ota == 0) )
 	  {
-
+		  HAL_IWDG_Refresh(&hiwdg);
 		  Device_Handler();
 //		  if(HAL_GPIO_ReadPin(LED_GPIO_Port, LED_Pin) == 0)
 //			  {
@@ -338,6 +344,7 @@ int main(void)
 	  }
 	  if(HAL_GetTick()-g_adc_tick>3000)
 	  {
+		  HAL_IWDG_Refresh(&hiwdg);
 		  VoltMeasure();
 		  g_adc_tick = HAL_GetTick();
 	  }
@@ -363,10 +370,11 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV2;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
@@ -514,6 +522,34 @@ static void MX_CRC_Init(void)
   /* USER CODE BEGIN CRC_Init 2 */
 
   /* USER CODE END CRC_Init 2 */
+
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_256;
+  hiwdg.Init.Reload = 4095;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 

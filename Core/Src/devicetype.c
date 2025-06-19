@@ -207,6 +207,7 @@ void ReadFirstLineFromFile(const char* filename)
 ////					mqtt_debug_send("Write data to SD successed\n");
 //					mqtt_debug_send(second_line);
 //				}
+				f_sync(&SDFile);
 				f_close(&SDFile);
 				f_mount(NULL, (TCHAR const*)SDPath, 1);
 
