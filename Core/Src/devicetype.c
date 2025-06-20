@@ -14,7 +14,7 @@
 
 uint32_t g_alive_tick=0;
 int16_t DeviceRegs[DEVICE_REGISTERS_NUMBER];
-uint16_t g_NbMessUp = 10;
+uint16_t g_NbMessUp = 5;
 uint16_t g_qpos; //Current param pointer in queque
 uint8_t upload_pnt; //current param upload
 uint8_t g_paramupdate=0;
